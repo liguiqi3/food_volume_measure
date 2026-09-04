@@ -22,6 +22,7 @@ _is_valid_import = (lambda x, c: x.startswith('#include ') and x[9:].strip() in 
 conan_targets = {
     'Eigen3::Eigen': 'eigen::eigen',
     'ZLIB::ZLIB': 'zlib::zlib',
+    'PCL::PCL': 'pcl::pcl',
     'Catch2::Catch2': 'catch2::catch2'
 }
 

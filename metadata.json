@@ -1,15 +1,15 @@
 {
-  "name": "fcpp",
+  "name": "food_volume_measure",
   "target": "auto",
   "version": "0.1.0",
   "team": "HeT-FTI",
   "license": "Apache-2.0",
-  "description": "The simple description in meta",
+  "description": "Point-cloud food volume measurement for oven trays (PCL-based).",
   "authors": ["Chen Zhang <chen2.zhang@szhittech.com>"],
   "maintainers": ["Chen Zhang <chen2.zhang@szhittech.com>"],
-  "topics": ["build", "library", "documentation", "test"],
-  "url": "https://github.com/HeT-FTI/fcpp.git",
-  "homepage": "https://github.com/HeT-FTI",
+  "topics": ["build", "library", "point-cloud", "volume-measurement", "pcl"],
+  "url": "https://github.com/HeT-FTI/food_volume_measure.git",
+  "homepage": "https://github.com/HeT-FTI/food_volume_measure",
   "cmake_version": "4.0.1",
   "build_cppstd": "17",
   "build_cstd": "11",
@@ -25,7 +25,8 @@
     "c": {"PCRE2": ["pcre2::pcre2"]},
     "cpp": {
       "Eigen3": ["Eigen3::Eigen"],
-      "etl": ["etl::etl"]
+      "etl": ["etl::etl"],
+      "PCL": ["PCL::PCL"]
     },
     "infra": {"GTest": ["gtest::gtest"], "pybind11": ["pybind11::module"]}
   },

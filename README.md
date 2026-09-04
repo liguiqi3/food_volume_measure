@@ -29,6 +29,65 @@ capabilities.
     - suffix distinguishment, (.h, .c) for C part, and (.hpp, .cpp) for C++ part
     - documenting system uses .dox for pure docstring, .cxx for examples codes
 
+## Library: PCD-IM Food Volume Measurement
+
+`food_volume_measure` measures food volume in cubic centimetres from a fixed oven-tray depth camera.
+It implements the PCD-IM (baseline-plane height-difference integral) algorithm:
+
+1. Build an empty-oven **baseline height map**: fit the tray plane from the first empty frame,
+   project every empty frame into the same local `(u, v)` frame, and take the per-cell median height.
+2. Remove the dominant background plane(s) from the food frame, then filter food points by their
+   baseline-relative height difference.
+3. Cluster the surviving points in **baseline-plane (u, v) coordinates** to separate multiple food items.
+4. Rasterize one top surface point per cell and integrate
+   `volume = Σ (food_top − baseline_height) × cell_size²`.
+5. Conservatively complete enclosed depth holes **inside a single component** with inverse-distance
+   interpolation (small, smooth holes) or a guarded quadratic surface fit (larger specular holes).
+   Measured and interpolated cells are reported separately.
+
+```cpp
+fcpp::MeasurementConfig cfg;               // defaults match the PCD-IM reference
+fcpp::VolumePipeline pipeline;
+std::vector<fcpp::PointCloud> baseline{ /* one or more empty-oven frames */ };
+fcpp::PointCloud food{ /* one food frame */ };
+fcpp::VolumeEstimate est = pipeline.measure(baseline, food, cfg);
+// est.volume_cm3, est.raw_volume_cm3, est.interpolated_volume_cm3, est.component_count, ...
+```
+
+- All geometry is in metres internally; set `cfg.input_unit` when inputs are millimetres.
+- At least one baseline frame is required; a baseline cell that is missing from the empty-oven map
+  is never replaced with an ideal zero plane.
+- Hole filling is intentionally conservative: only holes whose boundary belongs to exactly one food
+  component are considered, and several area / rim / fit-safety guards must pass.
+
+### Atomic algorithm API
+
+Beyond `VolumePipeline`, the library exposes each stage as an independently reusable algorithm. These are
+the units used for focused testing and advanced composition:
+
+| Header | Public API |
+|--------|-----------|
+| `volume_pointcloudprocess.hpp` | `preprocess_cloud` — validate/unit-normalize/ROI-crop/voxel-downsample; `voxel_downsample` — Open3D-equivalent voxel centroid downsample; `dbscan_labels` — Open3D-equivalent density clustering; `fit_plane_ransac` — plane estimation; `remove_dominant_plane` — background removal. |
+| `volume_baseline.hpp` | `build_baseline_model` — build a reusable, opaque `BaselineModel`. |
+| `volume_component.hpp` | `extract_food_components` — filter, cluster, and select foreground food components. |
+| `volume_integrator.hpp` | `measure_component_volume` — integrate baseline-relative heights with hole completion. |
+
+```cpp
+// Build a reusable baseline once, then measure one or more food frames against it.
+fcpp::BaselineModel baseline;
+fcpp::build_baseline_model(baseline_frames, orientation, cfg, baseline);
+
+fcpp::FoodComponents components;
+fcpp::extract_food_components(food_after_plane_removal, baseline, cfg, components);
+
+fcpp::ComponentVolumeEstimate volume;
+fcpp::measure_component_volume(components, baseline, cfg, volume);
+// volume.volume_cm3, volume.raw_volume_cm3, volume.interpolated_volume_cm3, ...
+```
+
+Implementation-only details (plane-local frames, grid keys, ROI bounds, height maps, hole candidates) stay
+private to `src/` and are never part of the installed headers.
+
 ## Features
 
 - Conan-based modern dependency management

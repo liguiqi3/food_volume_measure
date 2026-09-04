@@ -46,7 +46,7 @@ jobs:
           DEPS=$(python3 - <<'PY'
           import yaml
           reqs = yaml.safe_load(open('conandata.yml'))['requirements']
-          mapping = {'zlib': 'zlib1g-dev', 'pcre2': 'libpcre2-dev', 'eigen': 'libeigen3-dev'}
+          mapping = {'zlib': 'zlib1g-dev', 'pcre2': 'libpcre2-dev', 'eigen': 'libeigen3-dev', 'pcl': 'libpcl-dev'}
           pkgs = {mapping[r.split('/')[0]] for r in reqs if r.split('/')[0] in mapping}
           print(' '.join(sorted(pkgs)))
           PY
@@ -76,6 +76,14 @@ jobs:
           find include src -type f \( -name '*.cpp' -o -name '*.hpp' \) \
             -exec clang-format --dry-run --Werror --style=file:.github/misc/.clang-format-cpp {} +
 
+      # PCL is header-heavy and version-suffixed on Ubuntu; resolve its include
+      # flags from pkg-config (versioned name first, then unversioned, then a
+      # conservative default) so the C++ clang-tidy gate can find <pcl/...>.
+      - name: Resolve PCL include flags
+        run: |
+          PCL_INC=$(pkg-config --cflags pcl_common-1.14 2>/dev/null || pkg-config --cflags pcl_common 2>/dev/null || echo "-I/usr/include/pcl-1.14")
+          echo "PCL_INC=$PCL_INC" >> "$GITHUB_ENV"
+
       # Required gate: static analysis, warning = failure (WarningsAsErrors in .clang-tidy).
       # Third-party headers come from apt and are treated as system headers, so only
       # repo diagnostics count (HeaderFilterRegex anchored to ^(include|src)/).
@@ -86,7 +94,7 @@ jobs:
             clang-tidy --config-file=.github/misc/.clang-tidy "$f" -- -std=c11 -Iinclude -I/usr/include/eigen3 -isystem "$ETL_INC"
           done
           for f in src/*.cpp; do
-            clang-tidy --config-file=.github/misc/.clang-tidy "$f" -- -std=c++17 -Iinclude -I/usr/include/eigen3 -isystem "$ETL_INC"
+            clang-tidy --config-file=.github/misc/.clang-tidy "$f" -- -std=c++17 -Iinclude -I/usr/include/eigen3 $PCL_INC -isystem "$ETL_INC"
           done
 
       # Required gate: secrets scan with pinned binary version

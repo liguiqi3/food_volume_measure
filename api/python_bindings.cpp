@@ -35,7 +35,7 @@ void bind_color_int(const py::module &m) {
 
 
 PYBIND11_MODULE(fcpp_python, m) { 
-    m.doc() = "Python bindings for fcpp test utilities (Person, Color, Eigen, Zlib)";
+    m.doc() = "Python bindings for vm test utilities (Person, Color, Eigen, Zlib)";
 
     // binding for general functions 
     m.def("test_hello", &test_hello, "Prints 'CPP Compiler is ready!'");

@@ -10,5 +10,6 @@
   "cmake.sourceDirectory": "${workspaceFolder}",
   "files.associations": {
     "*.dox": "doxygen"
-  }
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:system"
 }
