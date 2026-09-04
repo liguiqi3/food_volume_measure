@@ -229,6 +229,7 @@ class PackageTestConan(ConanFile):
 
             _f_stress = self.recipe_folder + sep + 'test' + sep + 'stress'
             if not os.path.exists(_m := _f_stress + sep + MAIN_CPP):
+                os.makedirs(_f_stress, exist_ok=True)
                 with open(_m, 'w', encoding='utf-8') as f:
                     f.write(''.join(_entry_lists()))
 
@@ -244,6 +245,7 @@ class PackageTestConan(ConanFile):
                         f.write(''.join(_tmp))
             else:
                 if not os.path.exists(_m := _f_unit + sep + MAIN_CPP):
+                    os.makedirs(_f_unit, exist_ok=True)
                     with open(_m, 'w', encoding='utf-8') as f:
                         f.write(''.join(_entry_lists()))
 
