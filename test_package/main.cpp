@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "volume_pointcloudprocess.hpp"
+#include "volume_log.hpp"
 #include "volume_pipeline.hpp"
 
 
@@ -23,6 +24,11 @@ const char* const kFoodPcd = RESOURCES_PATH "/d405_260322274982_20260819_180010.
 
 int main() {
 #ifndef __ARM_EABI__
+    // 开启日志：五级日志 + 控制台 + 文件（覆盖写），记录算法中间结果与状态。
+    vm::log_set_level(vm::LogLevel::kInfo);
+    vm::log_set_console(true);
+    vm::log_set_file("pcd_im_trace.txt", vm::LogFileMode::kTruncate);
+
     const vm::PointCloud baseline = vm::load_pcd(kBaselinePcd);
     const vm::PointCloud food = vm::load_pcd(kFoodPcd);
     if (baseline.points.empty() || food.points.empty()) {
@@ -65,6 +71,8 @@ int main() {
     std::cout << "Convex Hull 体积: " << est.convex_hull_volume_m3 << " m^3" << std::endl;
     std::cout << std::defaultfloat;
     std::cout << "未匹配 baseline cell 数: " << est.missing_baseline_cells << std::endl;
+
+    vm::log_close_file();
 
     return est.status == vm::MeasurementStatus::kSuccess ? 0 : 1;
 #else
