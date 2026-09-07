@@ -1,4 +1,6 @@
+#include <iomanip>
 #include <iostream>
+#include <string>
 #include <vector>
 #include "volume_pointcloudprocess.hpp"
 #include "volume_pipeline.hpp"
@@ -7,39 +9,13 @@
 
 namespace {
 
-vm::PointCloud make_baseline(double half = 0.15) {
-    vm::PointCloud cloud;
-    for (float x = static_cast<float>(-half); x <= static_cast<float>(half) + 1.0e-6F; x += 0.005F) {
-        for (float y = static_cast<float>(-half); y <= static_cast<float>(half) + 1.0e-6F; y += 0.005F) {
-            cloud.points.push_back({x, y, 0.0F});
-        }
-    }
-    return cloud;
-}
+// Injected by test_package/CMakeLists.txt (link_to_resources); fallback for a standalone compile.
+#ifndef RESOURCES_PATH
+#define RESOURCES_PATH "."
+#endif
 
-vm::PointCloud make_food() {
-    vm::PointCloud cloud = make_baseline();
-    for (float x = 0.0025F; x <= 0.0975F + 1.0e-6F; x += 0.005F) {
-        for (float y = 0.0025F; y <= 0.0975F + 1.0e-6F; y += 0.005F) {
-            cloud.points.push_back({x, y, 0.02F});
-        }
-    }
-    return cloud;
-}
-
-vm::MeasurementConfig make_config() {
-    vm::MeasurementConfig cfg;
-    cfg.voxel_size_m = 0.002F;
-    cfg.plane_distance_threshold_m = 0.003F;
-    cfg.integration_resolution_m = 0.005F;
-    cfg.roi_border_margin_m = 0.02F;
-    cfg.min_height_m = 0.0015F;
-    cfg.baseline_fill_radius_cells = 2;
-    cfg.cluster_min_points = 8;
-    cfg.foreground_cluster_eps_m = 0.010F;
-    cfg.cluster_eps_m = 0.02F;
-    return cfg;
-}
+const char* const kBaselinePcd = RESOURCES_PATH "/d405_260322274982_20260805_142739.pcd";
+const char* const kFoodPcd = RESOURCES_PATH "/d405_260322274982_20260819_180010.pcd";
 
 } // namespace
 
@@ -47,23 +23,48 @@ vm::MeasurementConfig make_config() {
 
 int main() {
 #ifndef __ARM_EABI__
-    const std::vector<vm::PointCloud> baselines{make_baseline()};
-    vm::VolumePipeline pipeline;
-    const auto est = pipeline.measure(baselines, make_food(), make_config());
-    std::cout << "status: " << vm::status_to_string(est.status) << std::endl;
-    std::cout << "volume_cm3: " << est.volume_cm3 << ", raw_cm3: " << est.raw_volume_cm3
-              << ", interpolated_cm3: " << est.interpolated_volume_cm3 << std::endl;
-    std::cout << "components: " << est.component_count << ", measured_cells: " << est.measured_cells
-              << ", interpolated_cells: " << est.interpolated_cells << std::endl;
-
-    // Demonstrate the public DBSCAN clustering algorithm (Open3D-equivalent labels).
-    const std::vector<vm::Point3f> points{{0.0F, 0.0F, 0.0F}, {0.001F, 0.0F, 0.0F}, {0.1F, 0.1F, 0.1F}};
-    const std::vector<int> labels = vm::dbscan_labels(points, 0.01, 2);
-    std::cout << "dbscan labels:";
-    for (const int label : labels) {
-        std::cout << ' ' << label;
+    const vm::PointCloud baseline = vm::load_pcd(kBaselinePcd);
+    const vm::PointCloud food = vm::load_pcd(kFoodPcd);
+    if (baseline.points.empty() || food.points.empty()) {
+        std::cerr << "failed to load test point clouds" << std::endl;
+        return 1;
     }
-    std::cout << std::endl;
+    std::cout << "\n=== 加载 PCD ===" << std::endl;
+    std::cout << "baseline points: " << baseline.points.size() << std::endl;
+    std::cout << "初始点云数量: " << food.points.size() << std::endl;
+
+    const vm::MeasurementConfig cfg;
+    vm::VolumePipeline pipeline;
+    const vm::VolumeEstimate est = pipeline.measure(std::vector<vm::PointCloud>{baseline}, food, cfg);
+
+    std::cout << "\n=== PCD-IM 复现完成 ===" << std::endl;
+    std::cout << "输入点数: " << est.input_points << std::endl;
+    std::cout << "下采样点数: " << est.downsampled_points << std::endl;
+    std::cout << "聚类数: " << est.cluster_count << std::endl;
+    std::cout << "目标簇标签: [";
+    for (std::size_t i = 0; i < est.selected_cluster_labels.size(); ++i) {
+        if (i != 0) {
+            std::cout << ", ";
+        }
+        std::cout << est.selected_cluster_labels[i];
+    }
+    std::cout << "]" << std::endl;
+    std::cout << "目标组件数: " << est.component_count << std::endl;
+    std::cout << "目标簇点数: " << est.selected_cluster_points << std::endl;
+    std::cout << "顶部 surface cell 数: " << est.top_surface_points << std::endl;
+    std::cout << "baseline 帧数: " << est.baseline_frames << std::endl;
+    std::cout << "占用网格数: " << est.occupied_cells << std::endl;
+    std::cout << std::fixed << std::setprecision(6);
+    std::cout << "Footprint 占用面积: " << est.footprint_area_m2 << " m^2" << std::endl;
+    std::cout << "平均高度: " << est.mean_height_m << " m" << std::endl;
+    std::cout << "最大高度: " << est.max_height_m << " m" << std::endl;
+    std::cout << "PCD 原始积分体积: " << est.raw_volume_cm3 / 1e6 << " m^3" << std::endl;
+    std::cout << "PCD 补洞后积分体积: " << est.volume_cm3 / 1e6 << " m^3" << std::endl;
+    std::cout << "AABB 体积: " << est.aabb_volume_m3 << " m^3" << std::endl;
+    std::cout << "OBB-Compact 体积: " << est.obb_volume_m3 << " m^3" << std::endl;
+    std::cout << "Convex Hull 体积: " << est.convex_hull_volume_m3 << " m^3" << std::endl;
+    std::cout << std::defaultfloat;
+    std::cout << "未匹配 baseline cell 数: " << est.missing_baseline_cells << std::endl;
 
     return est.status == vm::MeasurementStatus::kSuccess ? 0 : 1;
 #else

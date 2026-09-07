@@ -27,7 +27,7 @@ vm::PointCloud make_baseline(double half = 0.15) {
 }
 
 vm::PointCloud make_food(double u_min = 0.0025, double u_max = 0.0975, double v_min = 0.0025, double v_max = 0.0975,
-                           double hole_u = -1.0, double hole_v = -1.0) {
+                         double hole_u = -1.0, double hole_v = -1.0) {
     vm::PointCloud cloud = make_baseline();
     for (double x = u_min; x <= u_max + 1.0e-9; x += kCell) {
         for (double y = v_min; y <= v_max + 1.0e-9; y += kCell) {
@@ -334,8 +334,7 @@ TEST(Atomic, ComponentExtractionAndVolume) {
     ASSERT_EQ(vm::remove_dominant_plane(pre.cloud, make_config(), remaining), vm::MeasurementStatus::kSuccess);
 
     vm::BaselineModel baseline;
-    ASSERT_EQ(vm::build_baseline_model(frames, remaining, make_config(), baseline),
-              vm::MeasurementStatus::kSuccess);
+    ASSERT_EQ(vm::build_baseline_model(frames, remaining, make_config(), baseline), vm::MeasurementStatus::kSuccess);
 
     vm::FoodComponents components;
     ASSERT_EQ(vm::extract_food_components(remaining, baseline, make_config(), components),
