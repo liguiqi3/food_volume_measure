@@ -7,6 +7,7 @@
 #include "volume_baseline.hpp"
 #include "volume_component.hpp"
 #include "volume_integrator.hpp"
+#include "volume_log.hpp"
 #include "volume_pipeline.hpp"
 #include "volume_pointcloudprocess.hpp"
 #include "volume_types.hpp"
@@ -556,4 +557,29 @@ extern "C" vm_status_t vm_measure(vm_pipeline_t* pipeline, const vm_cloud_t* bas
         }
         return VM_STATUS_INVALID_CONFIG;
     }
+}
+
+
+
+extern "C" void vm_log_set_level(vm_log_level_t level) { vm::log_set_level(static_cast<vm::LogLevel>(level)); }
+
+
+
+extern "C" vm_log_level_t vm_log_get_level(void) { return static_cast<vm_log_level_t>(vm::log_get_level()); }
+
+
+
+extern "C" void vm_log_set_console(int enabled) { vm::log_set_console(enabled != 0); }
+
+
+
+extern "C" void vm_log_set_file(const char* path, vm_log_file_mode_t mode) {
+    vm::log_set_file(path == nullptr ? "" : path,
+                     mode == VM_LOG_FILE_TRUNCATE ? vm::LogFileMode::kTruncate : vm::LogFileMode::kAppend);
+}
+
+
+
+extern "C" void vm_log_write(vm_log_level_t level, const char* message) {
+    vm::log_write(static_cast<vm::LogLevel>(level), message == nullptr ? "" : message);
 }

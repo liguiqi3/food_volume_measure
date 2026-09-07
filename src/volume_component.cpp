@@ -6,6 +6,7 @@
 #include <vector>
 #include "volume_component.hpp"
 #include "volume_internal.hpp"
+#include "volume_log.hpp"
 #include "volume_pointcloudprocess.hpp"
 // Conan::ImportEnd
 
@@ -182,6 +183,12 @@ MeasurementStatus extract_food_components(const PointCloud& food_m, const Baseli
             out.clouds[per_point_slot[i]].points.push_back(dense.points[i]);
         }
     }
+    std::size_t selected_points = 0;
+    for (const auto& cloud : out.clouds) {
+        selected_points += cloud.points.size();
+    }
+    log_info("components: clusters=" + std::to_string(out.cluster_count) +
+             " selected=" + std::to_string(out.labels.size()) + " points=" + std::to_string(selected_points));
     return MeasurementStatus::kSuccess;
 #endif // __ARM_EABI__
 }

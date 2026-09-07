@@ -9,6 +9,7 @@
 #include "volume_baseline.hpp"
 #include "volume_component.hpp"
 #include "volume_integrator.hpp"
+#include "volume_log.hpp"
 #include "volume_pointcloudprocess.hpp"
 // Conan::ImportEnd
 
@@ -33,6 +34,7 @@ namespace vm {
 namespace {
 
 VolumeEstimate failure(MeasurementStatus status, std::string message) {
+    log_error("pipeline failed: " + message);
     VolumeEstimate est{};
     est.status = status;
     est.message = std::move(message);
@@ -270,6 +272,8 @@ VolumeEstimate VolumePipeline::measure(const std::vector<PointCloud>& baseline_f
     est.obb_volume_m3 = reference.obb_volume_m3;
     est.convex_hull_volume_m3 = reference.convex_hull_volume_m3;
     est.message = status_to_string(MeasurementStatus::kSuccess);
+    log_info("result: status=" + std::string(status_to_string(est.status)) +
+             " volume_cm3=" + std::to_string(est.volume_cm3));
     return est;
 #endif // __ARM_EABI__
 }

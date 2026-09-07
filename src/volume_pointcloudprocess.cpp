@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 #include "volume_pointcloudprocess.hpp"
+#include "volume_log.hpp"
 #ifndef __ARM_EABI__
 #include <Eigen/Dense>
 #include <pcl/io/pcd_io.h>
@@ -77,6 +78,7 @@ PointCloud load_pcd(const std::string& path) {
 #else
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
     if (pcl::io::loadPCDFile<pcl::PointXYZ>(path, *cloud) < 0) {
+        log_error("load_pcd failed: " + path);
         return PointCloud{};
     }
 
@@ -85,6 +87,7 @@ PointCloud load_pcd(const std::string& path) {
     for (const auto& p : cloud->points) {
         out.points.push_back(Point3f{p.x, p.y, p.z});
     }
+    log_info("load_pcd: " + path + " points=" + std::to_string(out.points.size()));
     return out;
 #endif // __ARM_EABI__
 }
@@ -135,6 +138,7 @@ PointCloud voxel_downsample(const PointCloud& cloud, double voxel_size) {
         out.points.push_back(Point3f{static_cast<float>(acc.sum_x * inv), static_cast<float>(acc.sum_y * inv),
                                      static_cast<float>(acc.sum_z * inv)});
     }
+    log_debug("voxel_downsample: " + std::to_string(cloud.points.size()) + " -> " + std::to_string(out.points.size()));
     return out;
 }
 
@@ -209,6 +213,8 @@ MeasurementStatus preprocess_cloud(const PointCloud& input, const MeasurementCon
     if (out.cloud.points.empty()) {
         return MeasurementStatus::kEmptyInput;
     }
+    log_info("preprocess_cloud: input=" + std::to_string(out.input_points) +
+             " downsampled=" + std::to_string(out.retained_points));
     return MeasurementStatus::kSuccess;
 #endif // __ARM_EABI__
 }
@@ -280,6 +286,13 @@ std::vector<int> dbscan_labels(const std::vector<Point3f>& points, double eps, i
         }
         ++cluster_label;
     }
+    int cluster_count = 0;
+    for (const int label : labels) {
+        if (label >= 0) {
+            cluster_count = std::max(cluster_count, label + 1);
+        }
+    }
+    log_debug("dbscan_labels: points=" + std::to_string(point_count) + " clusters=" + std::to_string(cluster_count));
     return labels;
 #endif // __ARM_EABI__
 }
@@ -448,6 +461,7 @@ MeasurementStatus fit_plane_ransac(const PointCloud& cloud_m, double distance_th
     out_plane.d = static_cast<float>(normal.dot(mean));
 
     inlier_indices = std::move(final_inliers);
+    log_info("fit_plane_ransac: inliers=" + std::to_string(inlier_indices.size()));
     return MeasurementStatus::kSuccess;
 #endif // __ARM_EABI__
 }
@@ -502,6 +516,7 @@ MeasurementStatus remove_dominant_plane(const PointCloud& cloud_m, const Measure
             keep(secondary, cfg.secondary_plane_distance_threshold_m);
         }
     }
+    log_info("remove_dominant_plane: remaining=" + std::to_string(remaining.points.size()));
     return MeasurementStatus::kSuccess;
 #endif // __ARM_EABI__
 }

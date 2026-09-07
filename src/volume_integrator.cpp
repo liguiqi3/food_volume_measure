@@ -10,6 +10,7 @@
 #include <vector>
 #include "volume_integrator.hpp"
 #include "volume_internal.hpp"
+#include "volume_log.hpp"
 #ifndef __ARM_EABI__
 #include <Eigen/Dense>
 #endif
@@ -782,6 +783,8 @@ MeasurementStatus measure_component_volume(const FoodComponents& components, con
     out.coverage_ratio = grid.coverage_ratio;
     out.mean_height_m = grid.mean_height_m;
     out.max_height_m = grid.max_height_m;
+    log_info("integrate: measured=" + std::to_string(out.measured_cells) + " interpolated=" +
+             std::to_string(out.interpolated_cells) + " volume_cm3=" + std::to_string(out.volume_cm3));
     return MeasurementStatus::kSuccess;
 #endif // __ARM_EABI__
 }

@@ -629,6 +629,76 @@ vm_status_t vm_measure(vm_pipeline_t *pipeline, const vm_cloud_t *baseline_frame
 
 
 
+/**
+ * @brief [en] Logging severity levels.
+ * @brief [zh] 日志严重级别。
+ * @since 2.0
+ */
+typedef enum vm_log_level {
+    VM_LOG_TRACE = 0,
+    VM_LOG_DEBUG = 1,
+    VM_LOG_INFO = 2,
+    VM_LOG_WARNING = 3,
+    VM_LOG_ERROR = 4,
+    VM_LOG_OFF = 5
+} vm_log_level_t;
+
+
+
+/**
+ * @brief [en] Write mode of the log file sink.
+ * @brief [zh] 日志文件 sink 的写入模式。
+ * @since 2.0
+ */
+typedef enum vm_log_file_mode { VM_LOG_FILE_APPEND = 0, VM_LOG_FILE_TRUNCATE = 1 } vm_log_file_mode_t;
+
+
+
+/**
+ * @brief [en] Sets the minimum emitted log level; messages below it are dropped.
+ * @brief [zh] 设置要输出的最小日志级别；低于该级别的消息被丢弃。
+ * @since 2.0
+ */
+void vm_log_set_level(vm_log_level_t level);
+
+
+
+/**
+ * @brief [en] Returns the current minimum emitted log level.
+ * @brief [zh] 返回当前要输出的最低日志级别。
+ * @since 2.0
+ */
+vm_log_level_t vm_log_get_level(void);
+
+
+
+/**
+ * @brief [en] Enables or disables console output.
+ * @brief [zh] 启用或禁用控制台输出。
+ * @since 2.0
+ */
+void vm_log_set_console(int enabled);
+
+
+
+/**
+ * @brief [en] Opens a log file; an empty path closes the current file.
+ * @brief [zh] 打开日志文件；空路径则关闭当前文件。
+ * @since 2.0
+ */
+void vm_log_set_file(const char *path, vm_log_file_mode_t mode);
+
+
+
+/**
+ * @brief [en] Writes one log line when the level is at or above the configured minimum.
+ * @brief [zh] 当级别不低于配置的最小级别时写入一行日志。
+ * @since 2.0
+ */
+void vm_log_write(vm_log_level_t level, const char *message);
+
+
+
 #ifdef __cplusplus
 }
 #endif

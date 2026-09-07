@@ -8,6 +8,7 @@
 #include <vector>
 #include "volume_baseline.hpp"
 #include "volume_internal.hpp"
+#include "volume_log.hpp"
 #include "volume_pointcloudprocess.hpp"
 // Conan::ImportEnd
 
@@ -255,6 +256,7 @@ MeasurementStatus build_baseline_model(const std::vector<PointCloud>& baseline_f
     out.frame_count = baseline_frames.size();
     out.cell_count = data->height_by_cell.size();
     out.data = std::move(data);
+    log_info("baseline: frames=" + std::to_string(out.frame_count) + " cells=" + std::to_string(out.cell_count));
     return MeasurementStatus::kSuccess;
 #endif // __ARM_EABI__
 }
