@@ -1,10 +1,15 @@
 #include <gtest/gtest.h>
 #include <cmath>
+#include <cstdio>
+#include <fstream>
+#include <iterator>
 #include <limits>
+#include <string>
 #include <vector>
 #include "volume_baseline.hpp"
 #include "volume_component.hpp"
 #include "volume_integrator.hpp"
+#include "volume_log.hpp"
 #include "volume_pipeline.hpp"
 #include "volume_pointcloudprocess.hpp"
 
@@ -95,6 +100,47 @@ TEST(VolumeTypes, StatusToStringAllValues) {
     // Out-of-range enum values fall through to the switch default branches.
     EXPECT_STREQ(vm::status_to_string(static_cast<vm::MeasurementStatus>(999)), "unknown");
     EXPECT_DOUBLE_EQ(vm::length_unit_to_meter_scale(static_cast<vm::LengthUnit>(999)), 1.0);
+}
+
+
+
+TEST(Logging, FileSinkWrites) {
+    const std::string path = "unit_log_test.txt";
+    vm::log_set_level(vm::LogLevel::kInfo);
+    vm::log_set_console(false);
+    vm::log_set_file(path, vm::LogFileMode::kTruncate);
+    vm::log_info("unit log test message");
+    vm::log_close_file();
+
+    std::ifstream file(path);
+    ASSERT_TRUE(file.is_open());
+    std::string line;
+    std::getline(file, line);
+    EXPECT_NE(line.find("unit log test message"), std::string::npos);
+    file.close();
+    vm::log_set_level(vm::LogLevel::kOff);
+    std::remove(path.c_str());
+}
+
+
+
+TEST(Logging, LevelFiltersMessages) {
+    const std::string path = "unit_log_test_filter.txt";
+    vm::log_set_level(vm::LogLevel::kWarning);
+    vm::log_set_console(false);
+    vm::log_set_file(path, vm::LogFileMode::kTruncate);
+    vm::log_info("this info message must be dropped");
+    vm::log_warning("this warning message must be kept");
+    vm::log_close_file();
+
+    std::ifstream file(path);
+    ASSERT_TRUE(file.is_open());
+    const std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    file.close();
+    EXPECT_EQ(content.find("this info message must be dropped"), std::string::npos);
+    EXPECT_NE(content.find("this warning message must be kept"), std::string::npos);
+    vm::log_set_level(vm::LogLevel::kOff);
+    std::remove(path.c_str());
 }
 
 

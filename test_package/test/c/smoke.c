@@ -47,6 +47,10 @@ int main(void) {
     cfg.voxel_size_m = 0.002;
     cfg.integration_resolution_m = 0.005;
 
+    /* Enable logging to a file so the smoke test also exercises the log sink. */
+    vm_log_set_level(VM_LOG_INFO);
+    vm_log_set_file("c_smoke_log.txt", VM_LOG_FILE_TRUNCATE);
+
     vm_pipeline_t *pipeline = vm_pipeline_create();
     if (pipeline == NULL) {
         free(baseline);
@@ -58,6 +62,7 @@ int main(void) {
     vm_cloud_t food_cloud = {food, food_count};
     vm_estimate_t estimate;
     const vm_status_t status = vm_measure(pipeline, &baseline_cloud, 1, &food_cloud, &cfg, &estimate);
+    vm_log_write(VM_LOG_INFO, "c smoke: measurement finished");
 
     printf("C smoke: status=%s volume_cm3=%.3f components=%zu\n", vm_status_to_string(estimate.status),
            estimate.volume_cm3, estimate.component_count);
@@ -66,5 +71,17 @@ int main(void) {
     free(baseline);
     free(food);
 
-    return (status == VM_STATUS_SUCCESS && estimate.volume_cm3 > 100.0) ? 0 : 1;
+    /* Verify the log file was actually written. */
+    FILE *log_file = fopen("c_smoke_log.txt", "r");
+    if (log_file == NULL) {
+        return 1;
+    }
+    char line[512];
+    const int has_line = fgets(line, sizeof(line), log_file) != NULL;
+    fclose(log_file);
+
+    if (status != VM_STATUS_SUCCESS || estimate.volume_cm3 <= 100.0 || !has_line) {
+        return 1;
+    }
+    return 0;
 }
