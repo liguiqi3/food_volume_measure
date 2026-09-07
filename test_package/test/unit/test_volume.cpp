@@ -40,6 +40,20 @@ vm::PointCloud make_food(double u_min = 0.0025, double u_max = 0.0975, double v_
     return cloud;
 }
 
+vm::PointCloud make_food_with_rect_hole(double hole_x_min, double hole_x_max, double hole_y_min, double hole_y_max) {
+    vm::PointCloud cloud = make_baseline();
+    for (double x = 0.0025; x <= 0.0975 + 1.0e-9; x += kCell) {
+        for (double y = 0.0025; y <= 0.0975 + 1.0e-9; y += kCell) {
+            if (x >= hole_x_min - 1.0e-9 && x <= hole_x_max + 1.0e-9 && y >= hole_y_min - 1.0e-9 &&
+                y <= hole_y_max + 1.0e-9) {
+                continue;
+            }
+            cloud.points.push_back({static_cast<float>(x), static_cast<float>(y), static_cast<float>(kCuboidTop)});
+        }
+    }
+    return cloud;
+}
+
 vm::MeasurementConfig make_config() {
     vm::MeasurementConfig cfg;
     cfg.voxel_size_m = 0.002F;
@@ -210,6 +224,31 @@ TEST(VolumePipeline, SmallHoleInterpolated) {
     EXPECT_NEAR(est.volume_cm3, kExpectedVolumeCm3, 10.0);
     EXPECT_EQ(est.interpolated_cells, 1u);
     EXPECT_NEAR(est.interpolated_volume_cm3, kCuboidTop * kCell * kCell * 1.0e6, 0.05);
+}
+
+
+
+TEST(VolumePipeline, QuadraticHoleCompletion) {
+    const std::vector<vm::PointCloud> baselines{make_baseline()};
+    // A 4x4-cell interior gap exceeds the small-hole cap (9 cells) and forces the
+    // quadratic-surface (curve fill) path: collect_rim_cells + fit_quadratic_hole.
+    vm::VolumePipeline pipeline;
+    const auto est = pipeline.measure(baselines, make_food_with_rect_hole(0.04, 0.06, 0.04, 0.06), make_config());
+    ASSERT_EQ(est.status, vm::MeasurementStatus::kSuccess) << est.message;
+    EXPECT_EQ(est.interpolated_cells, 16u);
+    EXPECT_NEAR(est.volume_cm3, kExpectedVolumeCm3, 10.0);
+}
+
+
+
+TEST(VolumePipeline, OversizedHoleLeftUnfilled) {
+    const std::vector<vm::PointCloud> baselines{make_baseline()};
+    // A 10x10-cell gap (25 cm^2) exceeds the 8 cm^2 curve-fill cap, so it must stay unfilled.
+    vm::VolumePipeline pipeline;
+    const auto est = pipeline.measure(baselines, make_food_with_rect_hole(0.025, 0.075, 0.025, 0.075), make_config());
+    ASSERT_EQ(est.status, vm::MeasurementStatus::kSuccess) << est.message;
+    EXPECT_EQ(est.interpolated_cells, 0u);
+    EXPECT_EQ(est.unfilled_hole_cells, 100u);
 }
 
 
