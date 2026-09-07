@@ -88,6 +88,17 @@ TEST(VolumeTypes, FiniteCheck) {
 
 
 
+TEST(VolumeTypes, StatusToStringAllValues) {
+    for (int i = 0; i <= static_cast<int>(vm::MeasurementStatus::kUnsupportedPlatform); ++i) {
+        EXPECT_NE(vm::status_to_string(static_cast<vm::MeasurementStatus>(i)), nullptr);
+    }
+    // Out-of-range enum values fall through to the switch default branches.
+    EXPECT_STREQ(vm::status_to_string(static_cast<vm::MeasurementStatus>(999)), "unknown");
+    EXPECT_DOUBLE_EQ(vm::length_unit_to_meter_scale(static_cast<vm::LengthUnit>(999)), 1.0);
+}
+
+
+
 TEST(VolumePipeline, EmptyBaseline) {
     vm::VolumePipeline pipeline;
     const auto est = pipeline.measure({}, make_food(), make_config());
