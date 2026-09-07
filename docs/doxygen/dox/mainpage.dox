@@ -1,24 +1,52 @@
 /*!
- * @mainpage Introduction
+ * @mainpage food_volume_measure
  *
- * Welcome to API documentation of this project!
+ * Point-cloud food volume measurement for oven trays (PCL-based).
  *
- * @section intro_sec [en] demonstration
- *     This is simple demo main page
- * @section intro_sec [zh] 演示
- *     这是一个简单的演示主页
+ * @section intro_sec [en] Overview
+ *     Measures food volume in cubic centimeters from an empty-oven baseline and a food point
+ *     cloud, using a baseline-plane height-difference integral (PCD-IM).
+ * @section intro_sec [zh] 概述
+ *     基于空炉基线与食物点云，用基准面高度差积分（PCD-IM）测量食材体积（立方厘米）。
  *
- * @section features_sec features
- *     - cross-platform
- *     - modularization
- *     - integratable
+ * @section features_sec [en] Features
+ *     - Empty-oven baseline model with RANSAC plane fitting
+ *     - Open3D-equivalent voxel downsampling and DBSCAN clustering
+ *     - Component-aware conservative hole completion
+ *     - Reference volumes (AABB / OBB / convex hull)
+ *     - PCD loading via vm::load_pcd
+ * @section features_sec [zh] 特性
+ *     - 基于 RANSAC 平面拟合的空炉基线模型
+ *     - 与 Open3D 等价的体素降采样与 DBSCAN 聚类
+ *     - 组件感知的保守补洞
+ *     - 参考体积（AABB / OBB / 凸包）
+ *     - 通过 vm::load_pcd 载入 PCD
+ *
+ * @section pipeline_sec [en] Pipeline
+ *     - vm::load_pcd / vm::preprocess_cloud: load and voxel-downsample the point cloud
+ *     - vm::build_baseline_model: empty-oven baseline height map
+ *     - vm::extract_food_components: foreground clustering and component selection
+ *     - vm::measure_component_volume: height-difference integration with hole completion
+ *     - vm::VolumePipeline::measure: end-to-end composition
+ * @section pipeline_sec [zh] 流水线
+ *     - vm::load_pcd / vm::preprocess_cloud：载入并体素降采样点云
+ *     - vm::build_baseline_model：空炉基线高度图
+ *     - vm::extract_food_components：前景聚类与组件选择
+ *     - vm::measure_component_volume：高度差积分与补洞
+ *     - vm::VolumePipeline::measure：端到端组合
  *
  * @section usage_sec usage
  *     include headers in code:
  *     @code{.cpp}
- *     #include "mylib.h"
+ *     #include "volume_pipeline.hpp"
+ *     #include "volume_pointcloudprocess.hpp"
+ *
+ *     vm::PointCloud baseline = vm::load_pcd("empty_oven.pcd");
+ *     vm::PointCloud food = vm::load_pcd("food.pcd");
+ *     vm::VolumePipeline pipeline;
+ *     vm::VolumeEstimate est = pipeline.measure({baseline}, food, vm::MeasurementConfig{});
  *     @endcode
  *
- * @author Chen Zhang <chen.zhang_06sept@foxmail.com>
+ * @author Chen Zhang <chen2.zhang@szhittech.com>
  * @since 1.0
  */

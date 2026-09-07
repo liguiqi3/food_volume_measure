@@ -1,44 +1,52 @@
-_`fcpp Project Documentation`
-=============================
+_`food_volume_measure Documentation`
+=====================================
 
 _`Introduction`
 ---------------
 
-fcpp is a modern C/C++ library development framework that integrates advanced build systems, dependency
-management, and modular development support.
+food_volume_measure is a C++17 library for point-cloud food volume measurement on
+oven trays. It implements the PCD-IM (baseline-plane height-difference integral)
+method with PCL: an empty-oven baseline is discretized into a local-plane height
+map, the food cloud is voxel-downsampled and clustered in the baseline plane, and
+per-cell height differences are integrated into a volume in cubic centimeters.
 
 _`Main Features`
 ----------------
 
-- Support for mixed C and C++ programming
-- Built-in C++20 module support
-- Conan-based dependency management
-- Cross-platform build support (Windows/Linux/macOS)
-- Automated code generation and processing
-- Intelligent header and module conversion
+- Empty-oven baseline model with RANSAC plane fitting
+- Open3D-equivalent voxel downsampling and DBSCAN clustering
+- Component-aware conservative hole completion
+- Reference volumes (AABB / OBB / convex hull)
+- PCD loading via ``vm::load_pcd``
+- Host-only point-cloud processing (PCL); bare-metal stubs report an unsupported status
 
 _`Quick Start`
 --------------
 
-.. code-block:: bash
+.. code-block:: cpp
 
-   # Install dependencies
-   conan install .
-   
-   # Build the project
-   conan build .
+   #include "volume_pipeline.hpp"
+   #include "volume_pointcloudprocess.hpp"
 
-   # Create the package
-   conan create .
+   int main() {
+       vm::PointCloud baseline = vm::load_pcd("empty_oven.pcd");
+       vm::PointCloud food = vm::load_pcd("food.pcd");
+       vm::VolumePipeline pipeline;
+       vm::VolumeEstimate est =
+           pipeline.measure({baseline}, food, vm::MeasurementConfig{});
+       return est.status == vm::MeasurementStatus::kSuccess ? 0 : 1;
+   }
 
 _`Project Structure`
 --------------------
 
 ::
 
-   fcpp/
-   ├── include/         # Header files
-   ├── src/             # Source files
+   food_volume_measure/
+   ├── include/         # Public headers (volume_*.hpp)
+   ├── src/             # Implementation (volume_*.cpp)
+   ├── test_package/    # Consumer demo and unit/stress tests
+   ├── benchmark/       # Cross-platform benchmark scaffolding
    ├── CMakeLists.txt   # CMake build configuration
    ├── conanfile.py     # Conan package configuration
    ├── metadata.json    # Project metadata

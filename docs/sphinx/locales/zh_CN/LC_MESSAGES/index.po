@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: fcpp 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-09-12 16:27+0800\n"
+"POT-Creation-Date: 2026-09-07 10:20+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: zh_CN\n"
@@ -19,88 +19,96 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.17.0\n"
 
-#: ../../source/index.rst:52
+#: ../../source/index.rst:60
 msgid "CMakeList"
 msgstr "CMake 构建列表"
 
-#: ../../source/index.rst:52
+#: ../../source/index.rst:60
 msgid "Conanfile"
 msgstr "Conan 依赖配置"
 
-#: ../../source/index.rst:52
+#: ../../source/index.rst:60
 msgid "Metadata"
 msgstr "元数据"
 
-#: ../../source/index.rst:52
+#: ../../source/index.rst:60
 msgid "User concern contents"
 msgstr "用户关注内容"
 
-#: ../../source/index.rst:2 5098f9f288574b3bb79eff4f3478ffd1
-msgid "_`fcpp Project Documentation`"
-msgstr "fcpp 项目文档"
+#: ../../source/index.rst:2 f8829d5927324198a33e80bf4b0e5d92
+msgid "_`food_volume_measure Documentation`"
+msgstr "food_volume_measure 文档"
 
-#: ../../source/index.rst:5 d1788d27550c465b805f5235b8fe800c
+#: ../../source/index.rst:5 2f445424bcb04d888b75c627290c312e
 msgid "_`Introduction`"
 msgstr "简介"
 
-#: ../../source/index.rst:7 ff286ba22fc04d09b38e5e0dd49ba42f
+#: ../../source/index.rst:7 ef1339ae80b441f8ad83b1423614393a
 msgid ""
-"fcpp is a modern C/C++ library development framework that integrates "
-"advanced build systems, dependency management, and modular development "
-"support."
-msgstr "fcpp 是一个现代化的 C/C++ 库开发框架，集成了先进的构建系统、依赖管理以及模块化开发支持。"
+"food_volume_measure is a C++17 library for point-cloud food volume "
+"measurement on oven trays. It implements the PCD-IM (baseline-plane "
+"height-difference integral) method with PCL: an empty-oven baseline is "
+"discretized into a local-plane height map, the food cloud is voxel-"
+"downsampled and clustered in the baseline plane, and per-cell height "
+"differences are integrated into a volume in cubic centimeters."
+msgstr ""
+"food_volume_measure 是一个用于烤盘食材体积测量的 C++17 点云库。它基于 PCL 实现了 "
+"PCD-IM（基准面高度差积分）方法：先将空炉基线离散为局部平面上的高度图，再对食物点云 "
+"进行体素降采样并在基准面内聚类，最后将逐格高度差积分得到以立方厘米为单位的体积。"
 
-#: ../../source/index.rst:11 fb648b3d070d44f387ad1212ae44ce96
+#: ../../source/index.rst:14 7aa0e7b69da14a8b8d48abcacfd3ab45
 msgid "_`Main Features`"
 msgstr "主要特性"
 
-#: ../../source/index.rst:13 44dbbcd80ee0475ebcf2d0aa4fe633ab
-msgid "Support for mixed C and C++ programming"
-msgstr "支持 C 与 C++ 混合编程"
+#: ../../source/index.rst:16 c84a4990ec5e40f7ac465faa408f16e4
+msgid "Empty-oven baseline model with RANSAC plane fitting"
+msgstr "基于 RANSAC 平面拟合的空炉基线模型"
 
-#: ../../source/index.rst:14 718b884e18a242bb8e9deff54c05032b
-msgid "Built-in C++20 module support"
-msgstr "内置 C++20 模块支持"
+#: ../../source/index.rst:17 7a43d5db11544867acfa333b6c95596b
+msgid "Open3D-equivalent voxel downsampling and DBSCAN clustering"
+msgstr "与 Open3D 等价的体素降采样与 DBSCAN 聚类"
 
-#: ../../source/index.rst:15 c47b7df0cd6546d892a7633708e824c2
-msgid "Conan-based dependency management"
-msgstr "基于 Conan 的依赖管理"
+#: ../../source/index.rst:18 808f5b27b7534e8ba129eba22ddb3953
+msgid "Component-aware conservative hole completion"
+msgstr "组件感知的保守补洞"
 
-#: ../../source/index.rst:16 158b026b78d54a94b76770d407542d97
-msgid "Cross-platform build support (Windows/Linux/macOS)"
-msgstr "跨平台构建支持 (Windows/Linux/macOS)"
+#: ../../source/index.rst:19 fd85e4508ad64fbcb49dc1d5cd3b2441
+msgid "Reference volumes (AABB / OBB / convex hull)"
+msgstr "参考体积（AABB / OBB / 凸包）"
 
-#: ../../source/index.rst:17 c0da18bd94bb4bfbbed01a5bec6db5d6
-msgid "Automated code generation and processing"
-msgstr "自动化代码生成与处理"
+#: ../../source/index.rst:20 13ef126de94d49fdbce764b43e09557e
+msgid "PCD loading via ``vm::load_pcd``"
+msgstr "通过 ``vm::load_pcd`` 载入 PCD"
 
-#: ../../source/index.rst:18 6c31cacd36c14ac3a6a0006e15cd1c20
-msgid "Intelligent header and module conversion"
-msgstr "头文件与模块的智能转换"
+#: ../../source/index.rst:21 a431e9aa56b44501ba3f37e9dde03e52
+msgid ""
+"Host-only point-cloud processing (PCL); bare-metal stubs report an "
+"unsupported status"
+msgstr "仅宿主机点云处理（PCL）；裸机桩返回不支持状态"
 
-#: ../../source/index.rst:21 8a45435a84b44178acbb157731f2c104
+#: ../../source/index.rst:24 4170aa92ad3d4d84be424e1c5fb85b91
 msgid "_`Quick Start`"
 msgstr "快速开始"
 
-#: ../../source/index.rst:35 421c4d0d5f5746cf8e00178d785bb813
+#: ../../source/index.rst:41 f85fc1b4784d4b3c8541738e6f9ecd89
 msgid "_`Project Structure`"
 msgstr "项目结构"
 
-#: ../../source/index.rst:48 0da3719272724cb595f1151bf7d067f9
+#: ../../source/index.rst:56 8d144ba9dfdc4a048be153ff19ea50b8
 msgid "_`Detailed Settings`"
 msgstr "详细设置"
 
-#: ../../source/index.rst:50 3503917099d2444ab0d4e1ecf59b5850
+#: ../../source/index.rst:58 b2ddc9891e27429da16460a22d4bbea8
 msgid ""
 "For detailed settings in project-level meta, conan recipe, or cmake file,"
 " see:"
 msgstr "有关项目级元数据、Conan 配方或 CMake 文件中的详细设置，请参阅："
 
-#: ../../source/index.rst:61 c8161f3549674b578e80f454ed0c6925
+#: ../../source/index.rst:69 747e4e61ad734fec8443f066d65473c5
 msgid "_`License`"
 msgstr "许可证"
 
-#: ../../source/index.rst:63 93c9db90afb54d6b88e45555d4b35815
+#: ../../source/index.rst:71 c69d4da3330a4da08da258730deaebb8
 msgid ""
 "This project is licensed under the Apache-2.0 License. See the LICENSE "
 "file for details."
@@ -114,3 +122,29 @@ msgstr "本项目采用 Apache-2.0 许可证授权。详情请参阅 LICENSE 文
 
 #~ msgid "Full demonstration of a specific library work."
 #~ msgstr "特定库工作的完整演示。"
+
+#~ msgid ""
+#~ "fcpp is a modern C/C++ library "
+#~ "development framework that integrates advanced"
+#~ " build systems, dependency management, and"
+#~ " modular development support."
+#~ msgstr "fcpp 是一个现代化的 C/C++ 库开发框架，集成了先进的构建系统、依赖管理以及模块化开发支持。"
+
+#~ msgid "Support for mixed C and C++ programming"
+#~ msgstr "支持 C 与 C++ 混合编程"
+
+#~ msgid "Built-in C++20 module support"
+#~ msgstr "内置 C++20 模块支持"
+
+#~ msgid "Conan-based dependency management"
+#~ msgstr "基于 Conan 的依赖管理"
+
+#~ msgid "Cross-platform build support (Windows/Linux/macOS)"
+#~ msgstr "跨平台构建支持 (Windows/Linux/macOS)"
+
+#~ msgid "Automated code generation and processing"
+#~ msgstr "自动化代码生成与处理"
+
+#~ msgid "Intelligent header and module conversion"
+#~ msgstr "头文件与模块的智能转换"
+
