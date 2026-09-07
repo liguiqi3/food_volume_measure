@@ -22,9 +22,11 @@ struct ComponentVolumeEstimate {
     double interpolated_volume_cm3 = 0.0;
     double volume_cm3 = 0.0;
 
+    std::size_t top_surface_points = 0;
     std::size_t measured_cells = 0;
     std::size_t interpolated_cells = 0;
     std::size_t occupied_cells = 0;
+    std::size_t bbox_cell_count = 0;
     std::size_t missing_baseline_cells = 0;
     std::size_t unfilled_hole_cells = 0;
 

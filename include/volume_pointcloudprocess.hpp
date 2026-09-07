@@ -1,6 +1,7 @@
 // Conan::ImportStart
 #pragma once
 #include <cstddef>
+#include <string>
 #include <vector>
 #include "volume_types.hpp"
 // Conan::ImportEnd
@@ -109,6 +110,19 @@ MeasurementStatus fit_plane_ransac(const PointCloud& cloud_m, double distance_th
  * @exporter
  */
 MeasurementStatus remove_dominant_plane(const PointCloud& cloud_m, const MeasurementConfig& cfg, PointCloud& remaining);
+
+
+
+/**
+ * @brief [en] Loads a PCD point-cloud file into the library's PCL-free point model.
+ * @brief [zh] 将 PCD 点云文件载入到库的与 PCL 无关的点模型。
+ * @param path [en] Path to the PCD file.
+ * @param path [zh] PCD 文件路径。
+ * @return [en] The loaded points, or an empty cloud when the file cannot be read.
+ * @return [zh] 载入的点；文件无法读取时返回空点云。
+ * @exporter
+ */
+PointCloud load_pcd(const std::string& path);
 
 
 

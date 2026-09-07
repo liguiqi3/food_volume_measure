@@ -216,13 +216,21 @@ struct VolumeEstimate {
     double interpolated_volume_cm3 = std::numeric_limits<double>::quiet_NaN();
     double uncertainty_cm3 = std::numeric_limits<double>::quiet_NaN();
 
+    std::size_t input_points = 0;
+    std::size_t downsampled_points = 0;
+    std::size_t cluster_count = 0;
+    std::vector<int> selected_cluster_labels;
+    std::size_t selected_cluster_points = 0;
+
     std::size_t baseline_frames = 0;
     std::size_t baseline_cell_count = 0;
     std::size_t component_count = 0;
 
+    std::size_t top_surface_points = 0;
     std::size_t measured_cells = 0;
     std::size_t interpolated_cells = 0;
     std::size_t occupied_cells = 0;
+    std::size_t bbox_cell_count = 0;
     std::size_t missing_baseline_cells = 0;
     std::size_t unfilled_hole_cells = 0;
 
@@ -230,6 +238,10 @@ struct VolumeEstimate {
     double coverage_ratio = std::numeric_limits<double>::quiet_NaN();
     double mean_height_m = std::numeric_limits<double>::quiet_NaN();
     double max_height_m = std::numeric_limits<double>::quiet_NaN();
+
+    double aabb_volume_m3 = std::numeric_limits<double>::quiet_NaN();
+    double obb_volume_m3 = std::numeric_limits<double>::quiet_NaN();
+    double convex_hull_volume_m3 = std::numeric_limits<double>::quiet_NaN();
 
     std::string message;
 };

@@ -771,9 +771,11 @@ MeasurementStatus measure_component_volume(const FoodComponents& components, con
     out.raw_volume_cm3 = grid.raw_volume_m3 * kM3ToCm3;
     out.interpolated_volume_cm3 = grid.interpolated_volume_m3 * kM3ToCm3;
     out.volume_cm3 = grid.volume_m3 * kM3ToCm3;
+    out.top_surface_points = surface_by_cell.size();
     out.measured_cells = grid.measured_cells;
     out.interpolated_cells = grid.interpolated_cells;
     out.occupied_cells = grid.occupied_cells;
+    out.bbox_cell_count = grid.bbox_cells;
     out.missing_baseline_cells = grid.missing_baseline_cells;
     out.unfilled_hole_cells = hole_stats.unfilled_hole_cells;
     out.footprint_area_m2 = grid.footprint_area_m2;

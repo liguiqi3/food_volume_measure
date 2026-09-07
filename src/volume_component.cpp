@@ -129,6 +129,8 @@ MeasurementStatus extract_food_components(const PointCloud& food_m, const Baseli
         return MeasurementStatus::kFoodNotFound;
     }
 
+    out.cluster_count = counts.size();
+
     std::vector<int> selected;
     if (cfg.selection_mode == ComponentSelectionMode::kAllEligible) {
         for (const auto& entry : counts) {

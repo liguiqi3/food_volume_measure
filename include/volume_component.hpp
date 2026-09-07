@@ -1,5 +1,6 @@
 // Conan::ImportStart
 #pragma once
+#include <cstddef>
 #include <vector>
 #include "volume_baseline.hpp"
 #include "volume_types.hpp"
@@ -17,6 +18,7 @@ namespace vm {
  * @exporter
  */
 struct FoodComponents {
+    std::size_t cluster_count = 0;  // total non-noise DBSCAN clusters found before selection
     std::vector<int> labels;        // ascending, one entry per component
     std::vector<PointCloud> clouds; // one cloud per label, same order as `labels`
 };

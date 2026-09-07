@@ -6,12 +6,14 @@
 #include <map>
 #include <memory>
 #include <random>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
 #include "volume_pointcloudprocess.hpp"
 #ifndef __ARM_EABI__
 #include <Eigen/Dense>
+#include <pcl/io/pcd_io.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/search/kdtree.h>
@@ -60,6 +62,32 @@ constexpr unsigned int kRansacSeed = 43U;
 } // namespace
 
 #endif // __ARM_EABI__
+
+
+
+/**
+ * @brief [en] Loads a PCD point-cloud file into the library's PCL-free point model.
+ * @brief [zh] 将 PCD 点云文件载入到库的与 PCL 无关的点模型。
+ * @attacher
+ */
+PointCloud load_pcd(const std::string& path) {
+#ifdef __ARM_EABI__
+    (void)path;
+    return PointCloud{};
+#else
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    if (pcl::io::loadPCDFile<pcl::PointXYZ>(path, *cloud) < 0) {
+        return PointCloud{};
+    }
+
+    PointCloud out;
+    out.points.reserve(cloud->size());
+    for (const auto& p : cloud->points) {
+        out.points.push_back(Point3f{p.x, p.y, p.z});
+    }
+    return out;
+#endif // __ARM_EABI__
+}
 
 
 
