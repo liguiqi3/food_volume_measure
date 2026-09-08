@@ -8,6 +8,7 @@
 #include <vector>
 #include "volume_baseline.hpp"
 #include "volume_component.hpp"
+#include "volume_grid.hpp"
 #include "volume_integrator.hpp"
 #include "volume_log.hpp"
 #include "volume_pipeline.hpp"
@@ -495,4 +496,206 @@ TEST(Atomic, ComponentExtractionAndVolume) {
               vm::MeasurementStatus::kSuccess);
     EXPECT_NEAR(volume.volume_cm3, kExpectedVolumeCm3, 10.0);
     EXPECT_GT(volume.measured_cells, 0u);
+}
+
+
+
+TEST(Operators, ScaleToMetersAndCrop) {
+    vm::PointCloud mm;
+    mm.points.push_back({0.0F, 0.0F, 0.0F});
+    mm.points.push_back({1000.0F, 2000.0F, 3000.0F});
+    const vm::PointCloud m = vm::scale_to_meters(mm, vm::LengthUnit::kMillimeter);
+    ASSERT_EQ(m.points.size(), 2u);
+    EXPECT_NEAR(m.points[1].x, 1.0F, 1.0e-6F);
+    EXPECT_NEAR(m.points[1].y, 2.0F, 1.0e-6F);
+    EXPECT_NEAR(m.points[1].z, 3.0F, 1.0e-6F);
+
+    // Non-finite points are dropped per point.
+    vm::PointCloud mixed;
+    mixed.points.push_back({0.0F, 0.0F, 0.0F});
+    mixed.points.push_back({std::numeric_limits<float>::quiet_NaN(), 1.0F, 1.0F});
+    EXPECT_EQ(vm::scale_to_meters(mixed, vm::LengthUnit::kMeter).points.size(), 1u);
+
+    vm::AxisAlignedRoi roi;
+    roi.min_x = -1.0F;
+    roi.max_x = 1.0F;
+    roi.min_y = -1.0F;
+    roi.max_y = 1.0F;
+    roi.min_z = -1.0F;
+    roi.max_z = 1.0F;
+    vm::PointCloud in;
+    in.points.push_back({0.0F, 0.0F, 0.0F});
+    in.points.push_back({5.0F, 0.0F, 0.0F});
+    const vm::PointCloud cropped = vm::crop_axis_aligned(in, roi);
+    ASSERT_EQ(cropped.points.size(), 1u);
+    EXPECT_NEAR(cropped.points[0].x, 0.0F, 1.0e-6F);
+}
+
+
+
+TEST(Operators, SplitPlaneInliersAndOrient) {
+    vm::PointCloud cloud;
+    for (float x = -0.1F; x <= 0.1F; x += 0.02F) {
+        for (float y = -0.1F; y <= 0.1F; y += 0.02F) {
+            cloud.points.push_back({x, y, 0.0F});
+        }
+    }
+    const std::size_t plane_points = cloud.points.size();
+    cloud.points.push_back({0.0F, 0.0F, 0.05F}); // above the plane
+
+    const vm::Plane plane{0.0F, 0.0F, 1.0F, 0.0F};
+    vm::PointCloud remaining;
+    std::vector<std::size_t> inliers;
+    vm::split_plane_inliers(cloud, plane, 0.001, remaining, inliers);
+    EXPECT_EQ(inliers.size(), plane_points);
+    ASSERT_EQ(remaining.points.size(), 1u);
+    EXPECT_NEAR(remaining.points[0].z, 0.05F, 1.0e-6F);
+
+    // orient_plane flips the normal so the median signed height of `points` is non-negative.
+    vm::PointCloud above;
+    above.points.push_back({0.0F, 0.0F, 0.05F});
+    const vm::Plane down{0.0F, 0.0F, -1.0F, 0.0F};
+    const vm::Plane flipped = vm::orient_plane(down, above);
+    EXPECT_GT(flipped.nz, 0.0F);
+    const vm::Plane already{0.0F, 0.0F, 1.0F, 0.0F};
+    const vm::Plane kept = vm::orient_plane(already, above);
+    EXPECT_GT(kept.nz, 0.0F);
+}
+
+
+
+TEST(Operators, BuildPlaneFrame) {
+    const vm::Plane plane{0.0F, 0.0F, 1.0F, 0.0F};
+    const vm::Point3f origin{0.1F, 0.2F, 0.3F};
+    const vm::PlaneFrame frame = vm::build_plane_frame(plane, origin);
+    // The origin is stored as float32, so compare with float32 precision.
+    EXPECT_NEAR(frame.ox, 0.1, 1.0e-6);
+    EXPECT_NEAR(frame.oy, 0.2, 1.0e-6);
+    EXPECT_NEAR(frame.oz, 0.3, 1.0e-6);
+    EXPECT_NEAR(frame.nx, 0.0, 1.0e-9);
+    EXPECT_NEAR(frame.ny, 0.0, 1.0e-9);
+    EXPECT_NEAR(frame.nz, 1.0, 1.0e-9);
+    EXPECT_NEAR(frame.ux, 1.0, 1.0e-9);
+    EXPECT_NEAR(frame.uy, 0.0, 1.0e-9);
+    EXPECT_NEAR(frame.vx, 0.0, 1.0e-9);
+    EXPECT_NEAR(frame.vy, 1.0, 1.0e-9);
+}
+
+
+
+TEST(Operators, RasterizeBaselineAndRoi) {
+    const vm::Plane plane{0.0F, 0.0F, 1.0F, 0.0F};
+    const vm::Point3f origin{0.0F, 0.0F, 0.0F};
+    const vm::PlaneFrame frame = vm::build_plane_frame(plane, origin);
+
+    vm::BaselineData data;
+    const std::vector<vm::PointCloud> frames{make_baseline()};
+    ASSERT_EQ(vm::rasterize_baseline(frames, frame, kCell, 0.05, data), vm::MeasurementStatus::kSuccess);
+    EXPECT_GT(data.height_by_cell.size(), 0u);
+    EXPECT_NEAR(data.cell_size_m, kCell, 1.0e-9);
+    for (const auto& entry : data.height_by_cell) {
+        EXPECT_NEAR(entry.second, 0.0, 1.0e-9);
+    }
+    EXPECT_LT(data.bbox_u_min_m, 0.0);
+    EXPECT_GT(data.bbox_u_max_m, 0.0);
+    EXPECT_LT(data.bbox_v_min_m, 0.0);
+    EXPECT_GT(data.bbox_v_max_m, 0.0);
+
+    ASSERT_TRUE(vm::build_plane_roi(data, 0.02));
+    EXPECT_NEAR(data.roi.border_margin_m, 0.02, 1.0e-9);
+    EXPECT_GT(data.roi.u_min_m, data.bbox_u_min_m);
+    EXPECT_LT(data.roi.u_max_m, data.bbox_u_max_m);
+
+    // A margin wider than the footprint leaves no ROI.
+    vm::BaselineData small = data;
+    EXPECT_FALSE(vm::build_plane_roi(small, 1.0));
+}
+
+
+
+TEST(Operators, FilterProjectSelect) {
+    const std::vector<vm::PointCloud> frames{make_baseline()};
+    const vm::MeasurementConfig cfg = make_config();
+
+    vm::PreprocessResult pre;
+    ASSERT_EQ(vm::preprocess_cloud(make_food(), cfg, pre), vm::MeasurementStatus::kSuccess);
+    vm::PointCloud remaining;
+    ASSERT_EQ(vm::remove_dominant_plane(pre.cloud, cfg, remaining), vm::MeasurementStatus::kSuccess);
+    vm::BaselineModel baseline;
+    ASSERT_EQ(vm::build_baseline_model(frames, remaining, cfg, baseline), vm::MeasurementStatus::kSuccess);
+
+    vm::PointCloud dense;
+    ASSERT_EQ(vm::filter_baseline_difference(remaining, baseline, cfg, dense), vm::MeasurementStatus::kSuccess);
+    EXPECT_GT(dense.points.size(), 0u);
+
+    const vm::PointCloud projected = vm::project_to_plane(dense, baseline);
+    EXPECT_EQ(projected.points.size(), dense.points.size());
+    for (const auto& p : projected.points) {
+        EXPECT_NEAR(p.z, 0.0F, 1.0e-6F);
+    }
+
+    const std::vector<int> labels =
+        vm::dbscan_labels(projected.points, cfg.foreground_cluster_eps_m, cfg.cluster_min_points);
+    vm::FoodComponents components;
+    ASSERT_EQ(vm::select_components(labels, dense, cfg, components), vm::MeasurementStatus::kSuccess);
+    ASSERT_EQ(components.labels.size(), 1u);
+    EXPECT_EQ(components.labels.size(), components.clouds.size());
+}
+
+
+
+TEST(Operators, TopSurfaceGridHolesEstimate) {
+    const std::vector<vm::PointCloud> frames{make_baseline()};
+    const vm::MeasurementConfig cfg = make_config();
+
+    vm::PreprocessResult pre;
+    ASSERT_EQ(vm::preprocess_cloud(make_food(), cfg, pre), vm::MeasurementStatus::kSuccess);
+    vm::PointCloud remaining;
+    ASSERT_EQ(vm::remove_dominant_plane(pre.cloud, cfg, remaining), vm::MeasurementStatus::kSuccess);
+    vm::BaselineModel baseline;
+    ASSERT_EQ(vm::build_baseline_model(frames, remaining, cfg, baseline), vm::MeasurementStatus::kSuccess);
+    vm::FoodComponents components;
+    ASSERT_EQ(vm::extract_food_components(remaining, baseline, cfg, components), vm::MeasurementStatus::kSuccess);
+    ASSERT_FALSE(components.labels.empty());
+
+    // The monolithic integrator must equal the fine-grained operator chain.
+    vm::ComponentVolumeEstimate reference;
+    ASSERT_EQ(vm::measure_component_volume(components, baseline, cfg, reference), vm::MeasurementStatus::kSuccess);
+
+    const vm::SurfaceMap surface = vm::build_top_surface(components, baseline);
+    EXPECT_FALSE(surface.cells.empty());
+    EXPECT_EQ(surface.cells.size(), surface.heights_m.size());
+    EXPECT_EQ(surface.cells.size(), surface.labels.size());
+
+    vm::HeightGrid grid;
+    ASSERT_EQ(vm::build_height_grid(surface, baseline, cfg, grid), vm::MeasurementStatus::kSuccess);
+    EXPECT_GT(grid.occupied_cells, 0u);
+
+    vm::HoleFillStats stats;
+    ASSERT_EQ(vm::complete_holes(grid, baseline, cfg, stats), vm::MeasurementStatus::kSuccess);
+    EXPECT_GE(stats.filled_cell_count, 0u);
+
+    const vm::ComponentVolumeEstimate estimate = vm::compute_grid_estimate(grid);
+    EXPECT_NEAR(estimate.volume_cm3, reference.volume_cm3, 1.0e-6);
+    EXPECT_EQ(estimate.measured_cells, reference.measured_cells);
+    EXPECT_EQ(estimate.interpolated_cells, reference.interpolated_cells);
+}
+
+
+
+TEST(Operators, ReferenceVolumes) {
+    vm::PointCloud cloud;
+    for (double x = 0.0; x <= 0.095 + 1.0e-9; x += kCell) {
+        for (double y = 0.0; y <= 0.095 + 1.0e-9; y += kCell) {
+            cloud.points.push_back({static_cast<float>(x), static_cast<float>(y), 0.0F});
+            cloud.points.push_back({static_cast<float>(x), static_cast<float>(y), 0.02F});
+        }
+    }
+    const double expected = 0.095 * 0.095 * 0.02;
+    EXPECT_NEAR(vm::compute_aabb_volume(cloud), expected, 1.0e-9);
+    // PCL's MomentOfInertia OBB is computed in single precision, so its axes can
+    // be slightly rotated and the box slightly oversized (~1.8% here).
+    EXPECT_NEAR(vm::compute_obb_volume(cloud), expected, 1.0e-5);
+    EXPECT_NEAR(vm::compute_convex_hull_volume(cloud), expected, 1.0e-6);
+    EXPECT_TRUE(std::isnan(vm::compute_aabb_volume(vm::PointCloud{})));
 }
