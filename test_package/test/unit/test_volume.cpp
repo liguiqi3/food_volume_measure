@@ -271,6 +271,50 @@ TEST(VolumePipeline, MultiComponentVolume) {
 
 
 
+TEST(Integrator, PerComponentVolumes) {
+    const std::vector<vm::PointCloud> baselines{make_baseline(0.25)};
+    vm::PointCloud food = make_baseline(0.25);
+    // Two separated cuboids; the second starts far enough to form its own footprint cluster.
+    for (double x = 0.0025; x <= 0.0975 + 1.0e-9; x += kCell) {
+        for (double y = 0.0025; y <= 0.0975 + 1.0e-9; y += kCell) {
+            food.points.push_back({static_cast<float>(x), static_cast<float>(y), static_cast<float>(kCuboidTop)});
+        }
+    }
+    for (double x = 0.1125; x <= 0.2075 + 1.0e-9; x += kCell) {
+        for (double y = 0.0025; y <= 0.0975 + 1.0e-9; y += kCell) {
+            food.points.push_back({static_cast<float>(x), static_cast<float>(y), static_cast<float>(kCuboidTop)});
+        }
+    }
+
+    const vm::MeasurementConfig cfg = make_config();
+
+    vm::PreprocessResult pre{};
+    ASSERT_EQ(vm::preprocess_cloud(food, cfg, pre), vm::MeasurementStatus::kSuccess);
+    vm::PointCloud remaining{};
+    ASSERT_EQ(vm::remove_dominant_plane(pre.cloud, cfg, remaining), vm::MeasurementStatus::kSuccess);
+
+    vm::BaselineModel baseline{};
+    ASSERT_EQ(vm::build_baseline_model(baselines, remaining, cfg, baseline), vm::MeasurementStatus::kSuccess);
+
+    vm::FoodComponents components{};
+    ASSERT_EQ(vm::extract_food_components(remaining, baseline, cfg, components), vm::MeasurementStatus::kSuccess);
+    ASSERT_EQ(components.labels.size(), 2u);
+
+    vm::ComponentVolumeResults results{};
+    ASSERT_EQ(vm::measure_component_volumes(components, baseline, cfg, results), vm::MeasurementStatus::kSuccess);
+    ASSERT_EQ(results.estimates.size(), 2u);
+    ASSERT_EQ(results.labels, components.labels);
+
+    double total = 0.0;
+    for (const auto& estimate : results.estimates) {
+        EXPECT_NEAR(estimate.volume_cm3, kExpectedVolumeCm3, 25.0);
+        total += estimate.volume_cm3;
+    }
+    EXPECT_NEAR(total, 2.0 * kExpectedVolumeCm3, 40.0);
+}
+
+
+
 TEST(VolumePipeline, SmallHoleInterpolated) {
     const std::vector<vm::PointCloud> baselines{make_baseline()};
     // One missing interior cell (0.0525, 0.0525) surrounded by measured cells.
