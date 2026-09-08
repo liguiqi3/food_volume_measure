@@ -302,6 +302,10 @@ else()  # general package
     pybind11_add_module(${PY_TARGET_INTERNAL} ${PYTHON_BINDINGS_SOURCE})
     target_link_libraries(${PY_TARGET_INTERNAL} PRIVATE ${LIB_NAME})
 
+    if(ENABLE_COVERAGE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        target_link_options(${PY_TARGET_INTERNAL} PRIVATE "--coverage")
+    endif()
+
     set_target_properties(${PY_TARGET_INTERNAL} PROPERTIES
       OUTPUT_NAME "${PYTHON_MODULE_NAME}"
       LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
