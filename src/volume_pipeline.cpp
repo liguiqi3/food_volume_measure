@@ -106,81 +106,136 @@ ReferenceVolumes compute_reference_volumes(const std::vector<PointCloud>& compon
         return out;
     }
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr merged(new pcl::PointCloud<pcl::PointXYZ>);
-    merged->points.reserve(total);
-    double min_x = std::numeric_limits<double>::infinity();
-    double max_x = -std::numeric_limits<double>::infinity();
-    double min_y = std::numeric_limits<double>::infinity();
-    double max_y = -std::numeric_limits<double>::infinity();
-    double min_z = std::numeric_limits<double>::infinity();
-    double max_z = -std::numeric_limits<double>::infinity();
+    PointCloud merged;
+    merged.points.reserve(total);
     for (const auto& cloud : component_clouds) {
-        for (const auto& p : cloud.points) {
-            merged->points.push_back(pcl::PointXYZ{p.x, p.y, p.z});
-            min_x = std::min(min_x, static_cast<double>(p.x));
-            max_x = std::max(max_x, static_cast<double>(p.x));
-            min_y = std::min(min_y, static_cast<double>(p.y));
-            max_y = std::max(max_y, static_cast<double>(p.y));
-            min_z = std::min(min_z, static_cast<double>(p.z));
-            max_z = std::max(max_z, static_cast<double>(p.z));
-        }
-    }
-    merged->width = static_cast<std::uint32_t>(merged->points.size());
-    merged->height = 1;
-
-    out.aabb_volume_m3 = (max_x - min_x) * (max_y - min_y) * (max_z - min_z);
-
-    pcl::MomentOfInertiaEstimation<pcl::PointXYZ> moi;
-    moi.setInputCloud(merged);
-    moi.compute();
-    pcl::PointXYZ obb_min;
-    pcl::PointXYZ obb_max;
-    pcl::PointXYZ obb_position;
-    Eigen::Matrix3f obb_rotation = Eigen::Matrix3f::Identity();
-    moi.getOBB(obb_min, obb_max, obb_position, obb_rotation);
-    out.obb_volume_m3 = static_cast<double>(obb_max.x - obb_min.x) * static_cast<double>(obb_max.y - obb_min.y) *
-                        static_cast<double>(obb_max.z - obb_min.z);
-
-    pcl::ConvexHull<pcl::PointXYZ> hull;
-    hull.setInputCloud(merged);
-    pcl::PolygonMesh mesh;
-    hull.reconstruct(mesh);
-    pcl::PointCloud<pcl::PointXYZ> hull_vertices;
-    pcl::fromPCLPointCloud2(mesh.cloud, hull_vertices);
-    if (!hull_vertices.points.empty()) {
-        Eigen::Vector3d center = Eigen::Vector3d::Zero();
-        for (const auto& v : hull_vertices.points) {
-            center += Eigen::Vector3d(static_cast<double>(v.x), static_cast<double>(v.y), static_cast<double>(v.z));
-        }
-        center /= static_cast<double>(hull_vertices.points.size());
-
-        double volume = 0.0;
-        for (const auto& poly : mesh.polygons) {
-            if (poly.vertices.size() != 3) {
-                continue;
-            }
-            const auto& a = hull_vertices.points[poly.vertices[0]];
-            const auto& b = hull_vertices.points[poly.vertices[1]];
-            const auto& c = hull_vertices.points[poly.vertices[2]];
-            const Eigen::Vector3d va(static_cast<double>(a.x) - center.x(), static_cast<double>(a.y) - center.y(),
-                                     static_cast<double>(a.z) - center.z());
-            const Eigen::Vector3d vb(static_cast<double>(b.x) - center.x(), static_cast<double>(b.y) - center.y(),
-                                     static_cast<double>(b.z) - center.z());
-            const Eigen::Vector3d vc(static_cast<double>(c.x) - center.x(), static_cast<double>(c.y) - center.y(),
-                                     static_cast<double>(c.z) - center.z());
-            // For a convex hull and an interior reference point, the tetrahedra formed by each boundary
-            // triangle partition the hull exactly, so their absolute volumes sum to the hull volume.
-            volume += std::fabs(va.dot(vb.cross(vc))) / 6.0;
-        }
-        out.convex_hull_volume_m3 = volume;
+        merged.points.insert(merged.points.end(), cloud.points.begin(), cloud.points.end());
     }
 
+    out.aabb_volume_m3 = compute_aabb_volume(merged);
+    out.obb_volume_m3 = compute_obb_volume(merged);
+    out.convex_hull_volume_m3 = compute_convex_hull_volume(merged);
     return out;
 }
 
 #endif // __ARM_EABI__
 
 } // namespace
+
+
+
+double compute_aabb_volume(const PointCloud& cloud) {
+#ifdef __ARM_EABI__
+    (void)cloud;
+    return std::numeric_limits<double>::quiet_NaN();
+#else
+    if (cloud.points.empty()) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    double min_x = std::numeric_limits<double>::infinity();
+    double max_x = -std::numeric_limits<double>::infinity();
+    double min_y = std::numeric_limits<double>::infinity();
+    double max_y = -std::numeric_limits<double>::infinity();
+    double min_z = std::numeric_limits<double>::infinity();
+    double max_z = -std::numeric_limits<double>::infinity();
+    for (const auto& p : cloud.points) {
+        min_x = std::min(min_x, static_cast<double>(p.x));
+        max_x = std::max(max_x, static_cast<double>(p.x));
+        min_y = std::min(min_y, static_cast<double>(p.y));
+        max_y = std::max(max_y, static_cast<double>(p.y));
+        min_z = std::min(min_z, static_cast<double>(p.z));
+        max_z = std::max(max_z, static_cast<double>(p.z));
+    }
+    return (max_x - min_x) * (max_y - min_y) * (max_z - min_z);
+#endif // __ARM_EABI__
+}
+
+
+
+double compute_obb_volume(const PointCloud& cloud) {
+#ifdef __ARM_EABI__
+    (void)cloud;
+    return std::numeric_limits<double>::quiet_NaN();
+#else
+    if (cloud.points.empty()) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    pcl::PointCloud<pcl::PointXYZ>::Ptr pc(new pcl::PointCloud<pcl::PointXYZ>);
+    pc->points.reserve(cloud.points.size());
+    for (const auto& p : cloud.points) {
+        pc->points.push_back(pcl::PointXYZ{p.x, p.y, p.z});
+    }
+    pc->width = static_cast<std::uint32_t>(pc->points.size());
+    pc->height = 1;
+
+    pcl::MomentOfInertiaEstimation<pcl::PointXYZ> moi;
+    moi.setInputCloud(pc);
+    moi.compute();
+    pcl::PointXYZ obb_min;
+    pcl::PointXYZ obb_max;
+    pcl::PointXYZ obb_position;
+    Eigen::Matrix3f obb_rotation = Eigen::Matrix3f::Identity();
+    moi.getOBB(obb_min, obb_max, obb_position, obb_rotation);
+    return static_cast<double>(obb_max.x - obb_min.x) * static_cast<double>(obb_max.y - obb_min.y) *
+           static_cast<double>(obb_max.z - obb_min.z);
+#endif // __ARM_EABI__
+}
+
+
+
+double compute_convex_hull_volume(const PointCloud& cloud) {
+#ifdef __ARM_EABI__
+    (void)cloud;
+    return std::numeric_limits<double>::quiet_NaN();
+#else
+    if (cloud.points.empty()) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    pcl::PointCloud<pcl::PointXYZ>::Ptr pc(new pcl::PointCloud<pcl::PointXYZ>);
+    pc->points.reserve(cloud.points.size());
+    for (const auto& p : cloud.points) {
+        pc->points.push_back(pcl::PointXYZ{p.x, p.y, p.z});
+    }
+    pc->width = static_cast<std::uint32_t>(pc->points.size());
+    pc->height = 1;
+
+    pcl::ConvexHull<pcl::PointXYZ> hull;
+    hull.setInputCloud(pc);
+    pcl::PolygonMesh mesh;
+    hull.reconstruct(mesh);
+    pcl::PointCloud<pcl::PointXYZ> hull_vertices;
+    pcl::fromPCLPointCloud2(mesh.cloud, hull_vertices);
+    if (hull_vertices.points.empty()) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    Eigen::Vector3d center = Eigen::Vector3d::Zero();
+    for (const auto& v : hull_vertices.points) {
+        center += Eigen::Vector3d(static_cast<double>(v.x), static_cast<double>(v.y), static_cast<double>(v.z));
+    }
+    center /= static_cast<double>(hull_vertices.points.size());
+
+    double volume = 0.0;
+    for (const auto& poly : mesh.polygons) {
+        if (poly.vertices.size() != 3) {
+            continue;
+        }
+        const auto& a = hull_vertices.points[poly.vertices[0]];
+        const auto& b = hull_vertices.points[poly.vertices[1]];
+        const auto& c = hull_vertices.points[poly.vertices[2]];
+        const Eigen::Vector3d va(static_cast<double>(a.x) - center.x(), static_cast<double>(a.y) - center.y(),
+                                 static_cast<double>(a.z) - center.z());
+        const Eigen::Vector3d vb(static_cast<double>(b.x) - center.x(), static_cast<double>(b.y) - center.y(),
+                                 static_cast<double>(b.z) - center.z());
+        const Eigen::Vector3d vc(static_cast<double>(c.x) - center.x(), static_cast<double>(c.y) - center.y(),
+                                 static_cast<double>(c.z) - center.z());
+        // For a convex hull and an interior reference point, the tetrahedra formed by each boundary
+        // triangle partition the hull exactly, so their absolute volumes sum to the hull volume.
+        volume += std::fabs(va.dot(vb.cross(vc))) / 6.0;
+    }
+    return volume;
+#endif // __ARM_EABI__
+}
 
 
 

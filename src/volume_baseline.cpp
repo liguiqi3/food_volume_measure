@@ -66,8 +66,80 @@ PlaneFrame make_frame(double nx, double ny, double nz, double ox, double oy, dou
     return f;
 }
 
-bool build_plane_roi(const BaselineData& baseline, double border_margin_m, PlaneRoi& out) {
-    out = PlaneRoi{};
+} // namespace
+
+
+
+/**
+ * @brief [en] Builds the local orthonormal (u,v,n) frame for a plane and an origin.
+ * @brief [zh] 为平面和原点构建局部正交 (u,v,n) 坐标系。
+ * @attacher
+ */
+PlaneFrame build_plane_frame(const Plane& plane, const Point3f& origin) {
+    return make_frame(plane.nx, plane.ny, plane.nz, origin.x, origin.y, origin.z);
+}
+
+
+
+/**
+ * @brief [en] Projects baseline frames into a plane frame and rasterizes per-cell median heights.
+ * @brief [zh] 把基线帧投影到平面坐标系，并栅格化出逐格高度中位数。
+ * @attacher
+ */
+MeasurementStatus rasterize_baseline(const std::vector<PointCloud>& baseline_frames, const PlaneFrame& frame,
+                                     double cell_size_m, double max_surface_height_m, BaselineData& out) {
+    out.height_by_cell.clear();
+    out.frame = frame;
+    out.cell_size_m = cell_size_m;
+
+    std::map<CellKey, std::vector<double>> samples_by_cell;
+    for (const auto& frame_cloud : baseline_frames) {
+        for (const auto& p : frame_cloud.points) {
+            double u = 0.0;
+            double v = 0.0;
+            double h = 0.0;
+            project_to_plane_frame(frame, p, u, v, h);
+            if (!std::isfinite(h) || h < kBaselineMinHeightM || h > max_surface_height_m) {
+                continue;
+            }
+            samples_by_cell[cell_index_of(u, v, cell_size_m)].push_back(h);
+        }
+    }
+
+    if (samples_by_cell.empty()) {
+        return MeasurementStatus::kBaselineNoCells;
+    }
+
+    bool first_cell = true;
+    for (const auto& entry : samples_by_cell) {
+        const CellKey key = entry.first;
+        const double center_u = (static_cast<double>(key.first) + 0.5) * cell_size_m;
+        const double center_v = (static_cast<double>(key.second) + 0.5) * cell_size_m;
+        out.height_by_cell[key] = median(entry.second);
+        if (first_cell) {
+            out.bbox_u_min_m = center_u;
+            out.bbox_u_max_m = center_u;
+            out.bbox_v_min_m = center_v;
+            out.bbox_v_max_m = center_v;
+            first_cell = false;
+        } else {
+            out.bbox_u_min_m = std::min(out.bbox_u_min_m, center_u);
+            out.bbox_u_max_m = std::max(out.bbox_u_max_m, center_u);
+            out.bbox_v_min_m = std::min(out.bbox_v_min_m, center_v);
+            out.bbox_v_max_m = std::max(out.bbox_v_max_m, center_v);
+        }
+    }
+    return MeasurementStatus::kSuccess;
+}
+
+
+
+/**
+ * @brief [en] Computes the inset plane ROI from a baseline footprint and stores it in the baseline.
+ * @brief [zh] 从基线足迹计算内缩平面 ROI 并写回基线。
+ * @attacher
+ */
+bool build_plane_roi(BaselineData& baseline, double border_margin_m) {
     if (border_margin_m < 0.0 || baseline.height_by_cell.empty()) {
         return false;
     }
@@ -80,41 +152,13 @@ bool build_plane_roi(const BaselineData& baseline, double border_margin_m, Plane
         return false;
     }
 
-    out.u_min_m = u_min;
-    out.u_max_m = u_max;
-    out.v_min_m = v_min;
-    out.v_max_m = v_max;
-    out.border_margin_m = border_margin_m;
+    baseline.roi.u_min_m = u_min;
+    baseline.roi.u_max_m = u_max;
+    baseline.roi.v_min_m = v_min;
+    baseline.roi.v_max_m = v_max;
+    baseline.roi.border_margin_m = border_margin_m;
     return true;
 }
-
-} // namespace
-
-
-
-#ifndef __ARM_EABI__
-
-namespace {
-
-PointCloud scale_to_meters(const PointCloud& cloud, const MeasurementConfig& cfg) {
-    const double scale = length_unit_to_meter_scale(cfg.input_unit);
-    PointCloud out;
-    out.points.reserve(cloud.points.size());
-    for (const auto& p : cloud.points) {
-        // Invalid depth returns are dropped per point instead of aborting the whole frame.
-        if (!is_finite(p)) {
-            continue;
-        }
-        out.points.push_back(Point3f{static_cast<float>(static_cast<double>(p.x) * scale),
-                                     static_cast<float>(static_cast<double>(p.y) * scale),
-                                     static_cast<float>(static_cast<double>(p.z) * scale)});
-    }
-    return out;
-}
-
-} // namespace
-
-#endif // __ARM_EABI__
 
 
 
@@ -154,8 +198,15 @@ MeasurementStatus build_baseline_model(const std::vector<PointCloud>& baseline_f
         }
     }
 
+    // Work in metres and reuse the shared point-cloud operators.
+    std::vector<PointCloud> frames_m;
+    frames_m.reserve(baseline_frames.size());
+    for (const auto& frame : baseline_frames) {
+        frames_m.push_back(scale_to_meters(frame, cfg.input_unit));
+    }
+
     // The reference plane comes from the first frame after voxel downsampling.
-    const PointCloud first_m = voxel_downsample(scale_to_meters(baseline_frames[0], cfg), cfg.voxel_size_m);
+    const PointCloud first_m = voxel_downsample(frames_m[0], cfg.voxel_size_m);
 
     Plane plane{};
     std::vector<std::size_t> inliers;
@@ -179,79 +230,22 @@ MeasurementStatus build_baseline_model(const std::vector<PointCloud>& baseline_f
     oy *= inv_n;
     oz *= inv_n;
 
-    double nx = plane.nx;
-    double ny = plane.ny;
-    double nz = plane.nz;
-
     // Orient the normal toward the food side when orientation points are available.
-    if (!orientation_points.points.empty()) {
-        std::vector<double> heights;
-        heights.reserve(orientation_points.points.size());
-        for (const auto& p : orientation_points.points) {
-            if (!is_finite(p)) {
-                continue;
-            }
-            heights.push_back((static_cast<double>(p.x) - ox) * nx + (static_cast<double>(p.y) - oy) * ny +
-                              (static_cast<double>(p.z) - oz) * nz);
-        }
-        if (!heights.empty() && median(std::move(heights)) < 0.0) {
-            nx = -nx;
-            ny = -ny;
-            nz = -nz;
-        }
-    }
+    plane = orient_plane(plane, orientation_points);
 
-    data->plane.nx = static_cast<float>(nx);
-    data->plane.ny = static_cast<float>(ny);
-    data->plane.nz = static_cast<float>(nz);
-    data->plane.d = static_cast<float>(nx * ox + ny * oy + nz * oz);
-    data->frame = make_frame(nx, ny, nz, ox, oy, oz);
+    data->plane = plane;
+    data->frame =
+        build_plane_frame(plane, Point3f{static_cast<float>(ox), static_cast<float>(oy), static_cast<float>(oz)});
     data->cell_size_m = cfg.integration_resolution_m;
 
-    std::map<CellKey, std::vector<double>> samples_by_cell;
-    for (const auto& frame : baseline_frames) {
-        const PointCloud frame_m = scale_to_meters(frame, cfg);
-        for (const auto& p : frame_m.points) {
-            double u = 0.0;
-            double v = 0.0;
-            double h = 0.0;
-            project_to_plane_frame(data->frame, p, u, v, h);
-            if (!std::isfinite(h) || h < kBaselineMinHeightM || h > cfg.baseline_max_surface_height_m) {
-                continue;
-            }
-            samples_by_cell[cell_index_of(u, v, data->cell_size_m)].push_back(h);
-        }
+    st = rasterize_baseline(frames_m, data->frame, data->cell_size_m, cfg.baseline_max_surface_height_m, *data);
+    if (st != MeasurementStatus::kSuccess) {
+        return st;
     }
 
-    if (samples_by_cell.empty()) {
-        return MeasurementStatus::kBaselineNoCells;
-    }
-
-    bool first_cell = true;
-    for (const auto& entry : samples_by_cell) {
-        const CellKey key = entry.first;
-        const double center_u = (static_cast<double>(key.first) + 0.5) * data->cell_size_m;
-        const double center_v = (static_cast<double>(key.second) + 0.5) * data->cell_size_m;
-        data->height_by_cell[key] = median(entry.second);
-        if (first_cell) {
-            data->bbox_u_min_m = center_u;
-            data->bbox_u_max_m = center_u;
-            data->bbox_v_min_m = center_v;
-            data->bbox_v_max_m = center_v;
-            first_cell = false;
-        } else {
-            data->bbox_u_min_m = std::min(data->bbox_u_min_m, center_u);
-            data->bbox_u_max_m = std::max(data->bbox_u_max_m, center_u);
-            data->bbox_v_min_m = std::min(data->bbox_v_min_m, center_v);
-            data->bbox_v_max_m = std::max(data->bbox_v_max_m, center_v);
-        }
-    }
-
-    PlaneRoi roi{};
-    if (!build_plane_roi(*data, cfg.roi_border_margin_m, roi)) {
+    if (!build_plane_roi(*data, cfg.roi_border_margin_m)) {
         return MeasurementStatus::kInvalidConfig;
     }
-    data->roi = roi;
 
     out.frame_count = baseline_frames.size();
     out.cell_count = data->height_by_cell.size();

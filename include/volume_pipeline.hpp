@@ -37,4 +37,43 @@ class VolumePipeline {
 
 
 
+/**
+ * @brief [en] Computes the axis-aligned bounding-box volume of a point cloud in cubic metres.
+ * @brief [zh] 计算点云的轴对齐包围盒体积（立方米）。
+ * @param cloud [en] Points in metres.
+ * @param cloud [zh] 以米为单位的点。
+ * @return [en] AABB volume, or NaN when the cloud is empty.
+ * @return [zh] AABB 体积；点云为空时为 NaN。
+ * @exporter
+ */
+double compute_aabb_volume(const PointCloud& cloud);
+
+
+
+/**
+ * @brief [en] Computes the moment-based oriented bounding-box volume of a point cloud in cubic metres.
+ * @brief [zh] 计算点云基于矩的定向包围盒体积（立方米）。
+ * @param cloud [en] Points in metres.
+ * @param cloud [zh] 以米为单位的点。
+ * @return [en] OBB volume, or NaN when the cloud is empty.
+ * @return [zh] OBB 体积；点云为空时为 NaN。
+ * @exporter
+ */
+double compute_obb_volume(const PointCloud& cloud);
+
+
+
+/**
+ * @brief [en] Computes the convex-hull volume of a point cloud in cubic metres.
+ * @brief [zh] 计算点云的凸包体积（立方米）。
+ * @param cloud [en] Points in metres.
+ * @param cloud [zh] 以米为单位的点。
+ * @return [en] Convex-hull volume, or NaN when it cannot be computed.
+ * @return [zh] 凸包体积；无法计算时为 NaN。
+ * @exporter
+ */
+double compute_convex_hull_volume(const PointCloud& cloud);
+
+
+
 } // namespace vm

@@ -724,6 +724,119 @@ MeasurementStatus complete_component_aware_holes(HeightGrid& grid, const Baselin
 
 
 /**
+ * @brief [en] Builds the per-cell top surface of the selected components with their winning labels.
+ * @brief [zh] 构建选中组件的逐格顶表面及其胜出标签。
+ * @attacher
+ */
+SurfaceMap build_top_surface(const FoodComponents& components, const BaselineModel& baseline) {
+#ifdef __ARM_EABI__
+    (void)components;
+    (void)baseline;
+    return SurfaceMap{};
+#else
+    SurfaceMap out;
+    if (!baseline.data) {
+        return out;
+    }
+    std::map<CellKey, double> surface_by_cell;
+    std::map<CellKey, int> label_by_cell;
+    build_surface_maps(components, *baseline.data, surface_by_cell, label_by_cell);
+    out.cells.reserve(surface_by_cell.size());
+    out.heights_m.reserve(surface_by_cell.size());
+    out.labels.reserve(surface_by_cell.size());
+    for (const auto& entry : surface_by_cell) {
+        out.cells.push_back(entry.first);
+        out.heights_m.push_back(entry.second);
+        out.labels.push_back(label_by_cell[entry.first]);
+    }
+    return out;
+#endif // __ARM_EABI__
+}
+
+
+
+/**
+ * @brief [en] Builds the baseline-difference height grid from a top-surface map.
+ * @brief [zh] 从顶表面图构建基线差分高度栅格。
+ * @attacher
+ */
+MeasurementStatus build_height_grid(const SurfaceMap& surface, const BaselineModel& baseline,
+                                    const MeasurementConfig& cfg, HeightGrid& out) {
+#ifdef __ARM_EABI__
+    (void)surface;
+    (void)baseline;
+    (void)cfg;
+    (void)out;
+    return MeasurementStatus::kUnsupportedPlatform;
+#else
+    if (!baseline.data) {
+        return MeasurementStatus::kInvalidConfig;
+    }
+    std::map<CellKey, double> surface_by_cell;
+    std::map<CellKey, int> label_by_cell;
+    for (std::size_t i = 0; i < surface.cells.size(); ++i) {
+        surface_by_cell[surface.cells[i]] = surface.heights_m[i];
+        label_by_cell[surface.cells[i]] = surface.labels[i];
+    }
+    return build_height_grid(surface_by_cell, label_by_cell, *baseline.data, cfg, out);
+#endif // __ARM_EABI__
+}
+
+
+
+/**
+ * @brief [en] Completes enclosed holes conservatively inside single food components, in place.
+ * @brief [zh] 在单一食材组件内部保守地补全封闭孔（原地修改）。
+ * @attacher
+ */
+MeasurementStatus complete_holes(HeightGrid& grid, const BaselineModel& baseline, const MeasurementConfig& cfg,
+                                 HoleFillStats& stats) {
+#ifdef __ARM_EABI__
+    (void)grid;
+    (void)baseline;
+    (void)cfg;
+    (void)stats;
+    return MeasurementStatus::kUnsupportedPlatform;
+#else
+    if (!baseline.data) {
+        return MeasurementStatus::kInvalidConfig;
+    }
+    return complete_component_aware_holes(grid, *baseline.data, cfg, stats);
+#endif // __ARM_EABI__
+}
+
+
+
+/**
+ * @brief [en] Derives a component volume estimate from a height grid.
+ * @brief [zh] 从高度栅格派生组件体积估计。
+ * @attacher
+ */
+ComponentVolumeEstimate compute_grid_estimate(const HeightGrid& grid) {
+#ifdef __ARM_EABI__
+    (void)grid;
+    return ComponentVolumeEstimate{};
+#else
+    ComponentVolumeEstimate out;
+    out.raw_volume_cm3 = grid.raw_volume_m3 * kM3ToCm3;
+    out.interpolated_volume_cm3 = grid.interpolated_volume_m3 * kM3ToCm3;
+    out.volume_cm3 = grid.volume_m3 * kM3ToCm3;
+    out.measured_cells = grid.measured_cells;
+    out.interpolated_cells = grid.interpolated_cells;
+    out.occupied_cells = grid.occupied_cells;
+    out.bbox_cell_count = grid.bbox_cells;
+    out.missing_baseline_cells = grid.missing_baseline_cells;
+    out.footprint_area_m2 = grid.footprint_area_m2;
+    out.coverage_ratio = grid.coverage_ratio;
+    out.mean_height_m = grid.mean_height_m;
+    out.max_height_m = grid.max_height_m;
+    return out;
+#endif // __ARM_EABI__
+}
+
+
+
+/**
  * @brief [en] Measures component volume by integrating baseline-relative heights with conservative hole completion.
  * @brief [zh] 通过积分相对基线高度并保守补洞来测量组件体积。
  * @attacher
@@ -750,39 +863,26 @@ MeasurementStatus measure_component_volume(const FoodComponents& components, con
         return MeasurementStatus::kInvalidConfig;
     }
 
-    std::map<CellKey, double> surface_by_cell;
-    std::map<CellKey, int> label_by_cell;
-    build_surface_maps(components, data, surface_by_cell, label_by_cell);
-    if (surface_by_cell.empty()) {
+    SurfaceMap surface = build_top_surface(components, baseline);
+    if (surface.cells.empty()) {
         return MeasurementStatus::kFoodNotFound;
     }
 
     HeightGrid grid{};
-    MeasurementStatus st = build_height_grid(surface_by_cell, label_by_cell, data, cfg, grid);
+    MeasurementStatus st = build_height_grid(surface, baseline, cfg, grid);
     if (st != MeasurementStatus::kSuccess) {
         return st;
     }
 
     HoleFillStats hole_stats{};
-    st = complete_component_aware_holes(grid, data, cfg, hole_stats);
+    st = complete_holes(grid, baseline, cfg, hole_stats);
     if (st != MeasurementStatus::kSuccess) {
         return st;
     }
 
-    out.raw_volume_cm3 = grid.raw_volume_m3 * kM3ToCm3;
-    out.interpolated_volume_cm3 = grid.interpolated_volume_m3 * kM3ToCm3;
-    out.volume_cm3 = grid.volume_m3 * kM3ToCm3;
-    out.top_surface_points = surface_by_cell.size();
-    out.measured_cells = grid.measured_cells;
-    out.interpolated_cells = grid.interpolated_cells;
-    out.occupied_cells = grid.occupied_cells;
-    out.bbox_cell_count = grid.bbox_cells;
-    out.missing_baseline_cells = grid.missing_baseline_cells;
+    out = compute_grid_estimate(grid);
+    out.top_surface_points = surface.cells.size();
     out.unfilled_hole_cells = hole_stats.unfilled_hole_cells;
-    out.footprint_area_m2 = grid.footprint_area_m2;
-    out.coverage_ratio = grid.coverage_ratio;
-    out.mean_height_m = grid.mean_height_m;
-    out.max_height_m = grid.max_height_m;
     log_info("integrate: measured=" + std::to_string(out.measured_cells) + " interpolated=" +
              std::to_string(out.interpolated_cells) + " volume_cm3=" + std::to_string(out.volume_cm3));
     return MeasurementStatus::kSuccess;

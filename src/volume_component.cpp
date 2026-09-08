@@ -98,26 +98,80 @@ MeasurementStatus extract_food_components(const PointCloud& food_m, const Baseli
         return MeasurementStatus::kInvalidConfig;
     }
 
-    const BaselineData& data = *baseline.data;
-
     PointCloud dense{};
-    MeasurementStatus st = build_valid_difference_points(food_m, data, data.roi, cfg, dense);
+    MeasurementStatus st = filter_baseline_difference(food_m, baseline, cfg, dense);
     if (st != MeasurementStatus::kSuccess) {
         return st;
     }
 
     // Project valid points onto the baseline plane and cluster with Open3D-equivalent DBSCAN.
-    std::vector<Point3f> projected;
-    projected.reserve(dense.points.size());
-    for (const auto& p : dense.points) {
+    const PointCloud projected = project_to_plane(dense, baseline);
+    const std::vector<int> labels =
+        dbscan_labels(projected.points, cfg.foreground_cluster_eps_m, cfg.cluster_min_points);
+
+    return select_components(labels, dense, cfg, out);
+#endif // __ARM_EABI__
+}
+
+
+
+MeasurementStatus filter_baseline_difference(const PointCloud& food_m, const BaselineModel& baseline,
+                                             const MeasurementConfig& cfg, PointCloud& dense_out) {
+#ifdef __ARM_EABI__
+    (void)food_m;
+    (void)baseline;
+    (void)cfg;
+    (void)dense_out;
+    return MeasurementStatus::kUnsupportedPlatform;
+#else
+    if (!baseline.data) {
+        return MeasurementStatus::kInvalidConfig;
+    }
+    const BaselineData& data = *baseline.data;
+    return build_valid_difference_points(food_m, data, data.roi, cfg, dense_out);
+#endif // __ARM_EABI__
+}
+
+
+
+PointCloud project_to_plane(const PointCloud& cloud, const BaselineModel& baseline) {
+#ifdef __ARM_EABI__
+    (void)cloud;
+    (void)baseline;
+    return PointCloud{};
+#else
+    PointCloud out;
+    if (!baseline.data) {
+        return out;
+    }
+    const PlaneFrame& frame = baseline.data->frame;
+    out.points.reserve(cloud.points.size());
+    for (const auto& p : cloud.points) {
         double u = 0.0;
         double v = 0.0;
         double h = 0.0;
-        project_to_plane_frame(data.frame, p, u, v, h);
-        projected.push_back(Point3f{static_cast<float>(u), static_cast<float>(v), 0.0F});
+        project_to_plane_frame(frame, p, u, v, h);
+        out.points.push_back(Point3f{static_cast<float>(u), static_cast<float>(v), 0.0F});
     }
+    return out;
+#endif // __ARM_EABI__
+}
 
-    const std::vector<int> labels = dbscan_labels(projected, cfg.foreground_cluster_eps_m, cfg.cluster_min_points);
+
+
+MeasurementStatus select_components(const std::vector<int>& labels, const PointCloud& cloud,
+                                    const MeasurementConfig& cfg, FoodComponents& out) {
+#ifdef __ARM_EABI__
+    (void)labels;
+    (void)cloud;
+    (void)cfg;
+    (void)out;
+    return MeasurementStatus::kUnsupportedPlatform;
+#else
+    out = FoodComponents{};
+    if (labels.size() != cloud.points.size() || cfg.cluster_min_points <= 0) {
+        return MeasurementStatus::kInvalidConfig;
+    }
 
     const int min_candidate_size = std::max(32, cfg.cluster_min_points * 4);
     std::map<int, std::size_t> counts;
@@ -157,7 +211,7 @@ MeasurementStatus extract_food_components(const PointCloud& food_m, const Baseli
         slot_by_label[selected[i]] = i;
     }
 
-    std::vector<std::size_t> per_point_slot(dense.points.size(), static_cast<std::size_t>(-1));
+    std::vector<std::size_t> per_point_slot(cloud.points.size(), static_cast<std::size_t>(-1));
     for (std::size_t i = 0; i < labels.size(); ++i) {
         if (labels[i] >= 0) {
             const auto it = slot_by_label.find(labels[i]);
@@ -180,15 +234,11 @@ MeasurementStatus extract_food_components(const PointCloud& food_m, const Baseli
     }
     for (std::size_t i = 0; i < per_point_slot.size(); ++i) {
         if (per_point_slot[i] != static_cast<std::size_t>(-1)) {
-            out.clouds[per_point_slot[i]].points.push_back(dense.points[i]);
+            out.clouds[per_point_slot[i]].points.push_back(cloud.points[i]);
         }
     }
-    std::size_t selected_points = 0;
-    for (const auto& cloud : out.clouds) {
-        selected_points += cloud.points.size();
-    }
     log_info("components: clusters=" + std::to_string(out.cluster_count) +
-             " selected=" + std::to_string(out.labels.size()) + " points=" + std::to_string(selected_points));
+             " selected=" + std::to_string(out.labels.size()));
     return MeasurementStatus::kSuccess;
 #endif // __ARM_EABI__
 }

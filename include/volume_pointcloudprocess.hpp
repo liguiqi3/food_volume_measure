@@ -43,6 +43,71 @@ MeasurementStatus preprocess_cloud(const PointCloud& input, const MeasurementCon
 
 
 /**
+ * @brief [en] Scales coordinates to metres and drops non-finite points.
+ * @brief [zh] 将坐标缩放到米并丢弃非有限点。
+ * @param cloud [en] Input cloud in `unit`.
+ * @param cloud [zh] 以 `unit` 为单位的输入点云。
+ * @param unit [en] Input length unit.
+ * @param unit [zh] 输入长度单位。
+ * @return [en] Scaled cloud in metres.
+ * @return [zh] 以米为单位的缩放后点云。
+ * @exporter
+ */
+PointCloud scale_to_meters(const PointCloud& cloud, LengthUnit unit);
+
+
+
+/**
+ * @brief [en] Keeps only points inside an axis-aligned box.
+ * @brief [zh] 仅保留位于轴对齐包围盒内的点。
+ * @param cloud [en] Input cloud.
+ * @param cloud [zh] 输入点云。
+ * @param roi [en] Axis-aligned bounds in the same units as `cloud`.
+ * @param roi [zh] 与 `cloud` 同单位的轴对齐边界。
+ * @return [en] Cropped cloud.
+ * @return [zh] 裁剪后的点云。
+ * @exporter
+ */
+PointCloud crop_axis_aligned(const PointCloud& cloud, const AxisAlignedRoi& roi);
+
+
+
+/**
+ * @brief [en] Splits a cloud into plane outliers and inliers for a given Hessian plane.
+ * @brief [zh] 按给定 Hessian 平面把点云拆成平面外点与内点。
+ * @param cloud [en] Input cloud.
+ * @param cloud [zh] 输入点云。
+ * @param plane [en] Normalized Hessian plane.
+ * @param plane [zh] 归一化的 Hessian 平面。
+ * @param distance_threshold_m [en] Inlier distance threshold.
+ * @param distance_threshold_m [zh] 内点距离阈值。
+ * @param remaining [en] Receives the points whose distance is at or beyond the threshold.
+ * @param remaining [zh] 接收距离不低于阈值的点。
+ * @param inlier_indices [en] Receives indices of points whose distance is below the threshold.
+ * @param inlier_indices [zh] 接收距离低于阈值的点的索引。
+ * @exporter
+ */
+void split_plane_inliers(const PointCloud& cloud, const Plane& plane, double distance_threshold_m,
+                         PointCloud& remaining, std::vector<std::size_t>& inlier_indices);
+
+
+
+/**
+ * @brief [en] Flips the plane normal so the median signed height of `points` is non-negative.
+ * @brief [zh] 翻转平面法向，使 `points` 的有符号高度中位数非负。
+ * @param plane [en] Normalized Hessian plane.
+ * @param plane [zh] 归一化的 Hessian 平面。
+ * @param points [en] Points used to decide the orientation.
+ * @param points [zh] 用于确定朝向的点。
+ * @return [en] The oriented plane.
+ * @return [zh] 定向后的平面。
+ * @exporter
+ */
+Plane orient_plane(const Plane& plane, const PointCloud& points);
+
+
+
+/**
  * @brief [en] Voxel downsampling matching Open3D `voxel_down_sample`: each occupied voxel keeps the centroid of its points.
  * @brief [zh] 与 Open3D `voxel_down_sample` 一致的体素降采样：每个被占用的体素保留其点的质心。
  * @param cloud [en] Input point cloud.

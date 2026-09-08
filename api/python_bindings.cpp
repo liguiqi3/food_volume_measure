@@ -4,6 +4,7 @@
 
 #include "volume_baseline.hpp"
 #include "volume_component.hpp"
+#include "volume_grid.hpp"
 #include "volume_integrator.hpp"
 #include "volume_log.hpp"
 #include "volume_pipeline.hpp"
@@ -18,6 +19,27 @@ namespace py = pybind11;
 
 
 namespace {
+
+
+
+py::dict height_map_to_dict(const std::map<vm::CellKey, double>& cells) {
+    py::dict out;
+    for (const auto& entry : cells) {
+        out[py::make_tuple(entry.first.first, entry.first.second)] = entry.second;
+    }
+    return out;
+}
+
+
+
+std::map<vm::CellKey, double> height_map_from_dict(const py::dict& dict_in) {
+    std::map<vm::CellKey, double> out;
+    for (const auto& item : dict_in) {
+        const py::tuple key = py::cast<py::tuple>(item.first);
+        out[{py::cast<std::int64_t>(key[0]), py::cast<std::int64_t>(key[1])}] = py::cast<double>(item.second);
+    }
+    return out;
+}
 
 
 
@@ -194,7 +216,10 @@ void bind_structures(py::module& m) {
     py::class_<vm::BaselineModel>(m, "BaselineModel")
         .def(py::init<>())
         .def_readonly("frame_count", &vm::BaselineModel::frame_count)
-        .def_readonly("cell_count", &vm::BaselineModel::cell_count);
+        .def_readonly("cell_count", &vm::BaselineModel::cell_count)
+        .def_property_readonly(
+            "data", [](const vm::BaselineModel& model) -> const vm::BaselineData* { return model.data.get(); },
+            py::return_value_policy::reference_internal);
 
     py::class_<vm::FoodComponents>(m, "FoodComponents")
         .def(py::init<>())
@@ -224,6 +249,91 @@ void bind_structures(py::module& m) {
         .def_readonly("coverage_ratio", &vm::ComponentVolumeEstimate::coverage_ratio)
         .def_readonly("mean_height_m", &vm::ComponentVolumeEstimate::mean_height_m)
         .def_readonly("max_height_m", &vm::ComponentVolumeEstimate::max_height_m);
+
+    py::class_<vm::PlaneFrame>(m, "PlaneFrame")
+        .def(py::init<>())
+        .def_readwrite("ox", &vm::PlaneFrame::ox)
+        .def_readwrite("oy", &vm::PlaneFrame::oy)
+        .def_readwrite("oz", &vm::PlaneFrame::oz)
+        .def_readwrite("ux", &vm::PlaneFrame::ux)
+        .def_readwrite("uy", &vm::PlaneFrame::uy)
+        .def_readwrite("uz", &vm::PlaneFrame::uz)
+        .def_readwrite("vx", &vm::PlaneFrame::vx)
+        .def_readwrite("vy", &vm::PlaneFrame::vy)
+        .def_readwrite("vz", &vm::PlaneFrame::vz)
+        .def_readwrite("nx", &vm::PlaneFrame::nx)
+        .def_readwrite("ny", &vm::PlaneFrame::ny)
+        .def_readwrite("nz", &vm::PlaneFrame::nz);
+
+    py::class_<vm::PlaneRoi>(m, "PlaneRoi")
+        .def(py::init<>())
+        .def_readwrite("u_min_m", &vm::PlaneRoi::u_min_m)
+        .def_readwrite("u_max_m", &vm::PlaneRoi::u_max_m)
+        .def_readwrite("v_min_m", &vm::PlaneRoi::v_min_m)
+        .def_readwrite("v_max_m", &vm::PlaneRoi::v_max_m)
+        .def_readwrite("border_margin_m", &vm::PlaneRoi::border_margin_m);
+
+    py::class_<vm::BaselineData>(m, "BaselineData")
+        .def(py::init<>())
+        .def_readwrite("plane", &vm::BaselineData::plane)
+        .def_readwrite("frame", &vm::BaselineData::frame)
+        .def_readwrite("roi", &vm::BaselineData::roi)
+        .def_readwrite("cell_size_m", &vm::BaselineData::cell_size_m)
+        .def_property(
+            "height_by_cell",
+            [](const vm::BaselineData& baseline) { return height_map_to_dict(baseline.height_by_cell); },
+            [](vm::BaselineData& baseline, const py::dict& dict_in) {
+                baseline.height_by_cell = height_map_from_dict(dict_in);
+            })
+        .def_readwrite("bbox_u_min_m", &vm::BaselineData::bbox_u_min_m)
+        .def_readwrite("bbox_u_max_m", &vm::BaselineData::bbox_u_max_m)
+        .def_readwrite("bbox_v_min_m", &vm::BaselineData::bbox_v_min_m)
+        .def_readwrite("bbox_v_max_m", &vm::BaselineData::bbox_v_max_m);
+
+    py::class_<vm::HeightGrid>(m, "HeightGrid")
+        .def(py::init<>())
+        .def_readwrite("cells", &vm::HeightGrid::cells)
+        .def_readwrite("baseline_heights_m", &vm::HeightGrid::baseline_heights_m)
+        .def_readwrite("heights_m", &vm::HeightGrid::heights_m)
+        .def_property(
+            "is_interpolated",
+            [](const vm::HeightGrid& grid) {
+                return std::vector<int>(grid.is_interpolated.begin(), grid.is_interpolated.end());
+            },
+            [](vm::HeightGrid& grid, const std::vector<int>& values) {
+                grid.is_interpolated.assign(values.begin(), values.end());
+            })
+        .def_readwrite("component_labels", &vm::HeightGrid::component_labels)
+        .def_readwrite("cell_size_m", &vm::HeightGrid::cell_size_m)
+        .def_readwrite("frame", &vm::HeightGrid::frame)
+        .def_readonly("measured_cells", &vm::HeightGrid::measured_cells)
+        .def_readonly("interpolated_cells", &vm::HeightGrid::interpolated_cells)
+        .def_readonly("occupied_cells", &vm::HeightGrid::occupied_cells)
+        .def_readonly("bbox_cells", &vm::HeightGrid::bbox_cells)
+        .def_readonly("missing_baseline_cells", &vm::HeightGrid::missing_baseline_cells)
+        .def_readonly("raw_volume_m3", &vm::HeightGrid::raw_volume_m3)
+        .def_readonly("interpolated_volume_m3", &vm::HeightGrid::interpolated_volume_m3)
+        .def_readonly("volume_m3", &vm::HeightGrid::volume_m3)
+        .def_readonly("footprint_area_m2", &vm::HeightGrid::footprint_area_m2)
+        .def_readonly("coverage_ratio", &vm::HeightGrid::coverage_ratio)
+        .def_readonly("mean_height_m", &vm::HeightGrid::mean_height_m)
+        .def_readonly("max_height_m", &vm::HeightGrid::max_height_m);
+
+    py::class_<vm::HoleFillStats>(m, "HoleFillStats")
+        .def(py::init<>())
+        .def_readonly("candidate_hole_count", &vm::HoleFillStats::candidate_hole_count)
+        .def_readonly("filled_hole_count", &vm::HoleFillStats::filled_hole_count)
+        .def_readonly("filled_cell_count", &vm::HoleFillStats::filled_cell_count)
+        .def_readonly("small_filled_hole_count", &vm::HoleFillStats::small_filled_hole_count)
+        .def_readonly("curve_filled_hole_count", &vm::HoleFillStats::curve_filled_hole_count)
+        .def_readonly("unfilled_hole_cells", &vm::HoleFillStats::unfilled_hole_cells)
+        .def_readonly("max_component_inferred_ratio", &vm::HoleFillStats::max_component_inferred_ratio);
+
+    py::class_<vm::SurfaceMap>(m, "SurfaceMap")
+        .def(py::init<>())
+        .def_readwrite("cells", &vm::SurfaceMap::cells)
+        .def_readwrite("heights_m", &vm::SurfaceMap::heights_m)
+        .def_readwrite("labels", &vm::SurfaceMap::labels);
 }
 
 
@@ -306,6 +416,78 @@ void bind_functions(py::module& m) {
 
     m.def("measure_from_pcd", &measure_from_pcd, py::arg("baseline_pcd_paths"), py::arg("food_pcd_path"),
           py::arg("cfg") = vm::MeasurementConfig{});
+
+    // Fine-grained operators (point-cloud preprocessing).
+    m.def("scale_to_meters", &vm::scale_to_meters, py::arg("cloud"), py::arg("unit"));
+    m.def("crop_axis_aligned", &vm::crop_axis_aligned, py::arg("cloud"), py::arg("roi"));
+    m.def("orient_plane", &vm::orient_plane, py::arg("plane"), py::arg("points"));
+    m.def(
+        "split_plane_inliers",
+        [](const vm::PointCloud& cloud, const vm::Plane& plane, double distance_threshold_m) {
+            vm::PointCloud remaining;
+            std::vector<std::size_t> inlier_indices;
+            vm::split_plane_inliers(cloud, plane, distance_threshold_m, remaining, inlier_indices);
+            return py::make_tuple(remaining, inlier_indices);
+        },
+        py::arg("cloud"), py::arg("plane"), py::arg("distance_threshold_m"));
+
+    // Fine-grained operators (baseline).
+    m.def("build_plane_frame", &vm::build_plane_frame, py::arg("plane"), py::arg("origin"));
+    m.def("build_plane_roi", &vm::build_plane_roi, py::arg("baseline"), py::arg("border_margin_m"));
+    m.def(
+        "rasterize_baseline",
+        [](const std::vector<vm::PointCloud>& baseline_frames, const vm::PlaneFrame& frame, double cell_size_m,
+           double max_surface_height_m) {
+            vm::BaselineData out;
+            const vm::MeasurementStatus status =
+                vm::rasterize_baseline(baseline_frames, frame, cell_size_m, max_surface_height_m, out);
+            return py::make_tuple(status, out);
+        },
+        py::arg("baseline_frames"), py::arg("frame"), py::arg("cell_size_m"), py::arg("max_surface_height_m"));
+
+    // Fine-grained operators (foreground extraction).
+    m.def(
+        "filter_baseline_difference",
+        [](const vm::PointCloud& food_m, const vm::BaselineModel& baseline, const vm::MeasurementConfig& cfg) {
+            vm::PointCloud dense;
+            const vm::MeasurementStatus status = vm::filter_baseline_difference(food_m, baseline, cfg, dense);
+            return py::make_tuple(status, dense);
+        },
+        py::arg("food_m"), py::arg("baseline"), py::arg("cfg"));
+    m.def("project_to_plane", &vm::project_to_plane, py::arg("cloud"), py::arg("baseline"));
+    m.def(
+        "select_components",
+        [](const std::vector<int>& labels, const vm::PointCloud& cloud, const vm::MeasurementConfig& cfg) {
+            vm::FoodComponents out;
+            const vm::MeasurementStatus status = vm::select_components(labels, cloud, cfg, out);
+            return py::make_tuple(status, out);
+        },
+        py::arg("labels"), py::arg("cloud"), py::arg("cfg"));
+
+    // Fine-grained operators (integration + hole completion).
+    m.def("build_top_surface", &vm::build_top_surface, py::arg("components"), py::arg("baseline"));
+    m.def(
+        "build_height_grid",
+        [](const vm::SurfaceMap& surface, const vm::BaselineModel& baseline, const vm::MeasurementConfig& cfg) {
+            vm::HeightGrid out;
+            const vm::MeasurementStatus status = vm::build_height_grid(surface, baseline, cfg, out);
+            return py::make_tuple(status, out);
+        },
+        py::arg("surface"), py::arg("baseline"), py::arg("cfg"));
+    m.def(
+        "complete_holes",
+        [](vm::HeightGrid& grid, const vm::BaselineModel& baseline, const vm::MeasurementConfig& cfg) {
+            vm::HoleFillStats stats;
+            const vm::MeasurementStatus status = vm::complete_holes(grid, baseline, cfg, stats);
+            return py::make_tuple(status, stats);
+        },
+        py::arg("grid"), py::arg("baseline"), py::arg("cfg"));
+    m.def("compute_grid_estimate", &vm::compute_grid_estimate, py::arg("grid"));
+
+    // Fine-grained operators (reference volumes).
+    m.def("compute_aabb_volume", &vm::compute_aabb_volume, py::arg("cloud"));
+    m.def("compute_obb_volume", &vm::compute_obb_volume, py::arg("cloud"));
+    m.def("compute_convex_hull_volume", &vm::compute_convex_hull_volume, py::arg("cloud"));
 
     py::class_<vm::VolumePipeline>(m, "VolumePipeline")
         .def(py::init<>())

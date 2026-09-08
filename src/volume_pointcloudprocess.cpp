@@ -144,6 +144,77 @@ PointCloud voxel_downsample(const PointCloud& cloud, double voxel_size) {
 
 
 
+PointCloud scale_to_meters(const PointCloud& cloud, LengthUnit unit) {
+    const double scale = length_unit_to_meter_scale(unit);
+    PointCloud out;
+    out.points.reserve(cloud.points.size());
+    for (const auto& p : cloud.points) {
+        if (!is_finite(p)) {
+            continue;
+        }
+        out.points.push_back(Point3f{static_cast<float>(static_cast<double>(p.x) * scale),
+                                     static_cast<float>(static_cast<double>(p.y) * scale),
+                                     static_cast<float>(static_cast<double>(p.z) * scale)});
+    }
+    return out;
+}
+
+
+
+PointCloud crop_axis_aligned(const PointCloud& cloud, const AxisAlignedRoi& roi) {
+    PointCloud out;
+    out.points.reserve(cloud.points.size());
+    for (const auto& p : cloud.points) {
+        if (p.x >= roi.min_x && p.x <= roi.max_x && p.y >= roi.min_y && p.y <= roi.max_y && p.z >= roi.min_z &&
+            p.z <= roi.max_z) {
+            out.points.push_back(p);
+        }
+    }
+    return out;
+}
+
+
+
+void split_plane_inliers(const PointCloud& cloud, const Plane& plane, double distance_threshold_m,
+                         PointCloud& remaining, std::vector<std::size_t>& inlier_indices) {
+    remaining = PointCloud{};
+    inlier_indices.clear();
+    remaining.points.reserve(cloud.points.size());
+    inlier_indices.reserve(cloud.points.size());
+    for (std::size_t i = 0; i < cloud.points.size(); ++i) {
+        if (std::fabs(signed_height(plane, cloud.points[i])) < distance_threshold_m) {
+            inlier_indices.push_back(i);
+        } else {
+            remaining.points.push_back(cloud.points[i]);
+        }
+    }
+}
+
+
+
+Plane orient_plane(const Plane& plane, const PointCloud& points) {
+    std::vector<double> heights;
+    heights.reserve(points.points.size());
+    for (const auto& p : points.points) {
+        if (!is_finite(p)) {
+            continue;
+        }
+        heights.push_back(signed_height(plane, p));
+    }
+    if (heights.empty()) {
+        return plane;
+    }
+    std::sort(heights.begin(), heights.end());
+    const std::size_t n = heights.size();
+    const double med = (n % 2 == 1) ? heights[n / 2] : 0.5 * (heights[n / 2 - 1] + heights[n / 2]);
+    if (med < 0.0) {
+        return Plane{-plane.nx, -plane.ny, -plane.nz, -plane.d};
+    }
+    return plane;
+}
+
+
+
 /**
  * @brief [en] Validates, unit-normalizes, optionally crops, and voxel-downsamples the input cloud.
  * @brief [zh] 校验、单位归一、可选裁剪并体素降采样输入点云。
@@ -178,30 +249,10 @@ MeasurementStatus preprocess_cloud(const PointCloud& input, const MeasurementCon
     }
 
     // Unit-normalize to metres, dropping non-finite points on the way.
-    PointCloud scaled;
-    scaled.points.reserve(input.points.size());
-    for (const auto& p : input.points) {
-        if (!is_finite(p)) {
-            continue;
-        }
-        scaled.points.push_back(Point3f{static_cast<float>(static_cast<double>(p.x) * scale),
-                                        static_cast<float>(static_cast<double>(p.y) * scale),
-                                        static_cast<float>(static_cast<double>(p.z) * scale)});
-    }
+    const PointCloud scaled = scale_to_meters(input, cfg.input_unit);
 
     // Optional axis-aligned ROI crop.
-    PointCloud cropped = scaled;
-    if (cfg.use_roi) {
-        PointCloud filtered;
-        filtered.points.reserve(cropped.points.size());
-        for (const auto& p : cropped.points) {
-            if (p.x >= cfg.roi.min_x && p.x <= cfg.roi.max_x && p.y >= cfg.roi.min_y && p.y <= cfg.roi.max_y &&
-                p.z >= cfg.roi.min_z && p.z <= cfg.roi.max_z) {
-                filtered.points.push_back(p);
-            }
-        }
-        cropped = std::move(filtered);
-    }
+    const PointCloud cropped = cfg.use_roi ? crop_axis_aligned(scaled, cfg.roi) : scaled;
 
     // Voxel downsample (Open3D-equivalent centroid rule).
     const PointCloud voxeled = voxel_downsample(cropped, cfg.voxel_size_m);
@@ -487,16 +538,11 @@ MeasurementStatus remove_dominant_plane(const PointCloud& cloud_m, const Measure
         return MeasurementStatus::kInvalidConfig;
     }
 
-    auto keep = [&](const Plane& plane, double threshold) {
+    auto remove_plane = [&](const Plane& plane, double threshold) {
         PointCloud kept;
-        kept.points.reserve(remaining.points.size());
-        for (const auto& p : remaining.points) {
-            // Inliers are `|h| < threshold`, so the complement keeps `|h| >= threshold`.
-            if (std::fabs(signed_height(plane, p)) >= threshold) {
-                kept.points.push_back(p);
-            }
-        }
-        remaining = kept;
+        std::vector<std::size_t> inliers;
+        split_plane_inliers(remaining, plane, threshold, kept, inliers);
+        remaining = std::move(kept);
     };
 
     remaining = cloud_m;
@@ -505,7 +551,7 @@ MeasurementStatus remove_dominant_plane(const PointCloud& cloud_m, const Measure
     std::vector<std::size_t> inliers;
     if (fit_plane_ransac(cloud_m, cfg.plane_distance_threshold_m, cfg.plane_ransac_iterations, plane, inliers) ==
         MeasurementStatus::kSuccess) {
-        keep(plane, cfg.plane_distance_threshold_m);
+        remove_plane(plane, cfg.plane_distance_threshold_m);
     }
 
     if (cfg.remove_secondary_plane) {
@@ -513,7 +559,7 @@ MeasurementStatus remove_dominant_plane(const PointCloud& cloud_m, const Measure
         std::vector<std::size_t> secondary_inliers;
         if (fit_plane_ransac(remaining, cfg.secondary_plane_distance_threshold_m, cfg.plane_ransac_iterations,
                              secondary, secondary_inliers) == MeasurementStatus::kSuccess) {
-            keep(secondary, cfg.secondary_plane_distance_threshold_m);
+            remove_plane(secondary, cfg.secondary_plane_distance_threshold_m);
         }
     }
     log_info("remove_dominant_plane: remaining=" + std::to_string(remaining.points.size()));
