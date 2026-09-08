@@ -166,6 +166,7 @@ void bind_structures(py::module& m) {
         .def_readonly("downsampled_points", &vm::VolumeEstimate::downsampled_points)
         .def_readonly("cluster_count", &vm::VolumeEstimate::cluster_count)
         .def_readonly("selected_cluster_labels", &vm::VolumeEstimate::selected_cluster_labels)
+        .def_readonly("component_estimates", &vm::VolumeEstimate::component_estimates)
         .def_readonly("selected_cluster_points", &vm::VolumeEstimate::selected_cluster_points)
         .def_readonly("baseline_frames", &vm::VolumeEstimate::baseline_frames)
         .def_readonly("baseline_cell_count", &vm::VolumeEstimate::baseline_cell_count)
@@ -223,11 +224,6 @@ void bind_structures(py::module& m) {
         .def_readonly("coverage_ratio", &vm::ComponentVolumeEstimate::coverage_ratio)
         .def_readonly("mean_height_m", &vm::ComponentVolumeEstimate::mean_height_m)
         .def_readonly("max_height_m", &vm::ComponentVolumeEstimate::max_height_m);
-
-    py::class_<vm::ComponentVolumeResults>(m, "ComponentVolumeResults")
-        .def(py::init<>())
-        .def_readonly("labels", &vm::ComponentVolumeResults::labels)
-        .def_readonly("estimates", &vm::ComponentVolumeResults::estimates);
 }
 
 
@@ -302,7 +298,7 @@ void bind_functions(py::module& m) {
     m.def(
         "measure_component_volumes",
         [](const vm::FoodComponents& components, const vm::BaselineModel& baseline, const vm::MeasurementConfig& cfg) {
-            vm::ComponentVolumeResults out;
+            std::vector<vm::ComponentVolumeEstimate> out;
             const vm::MeasurementStatus status = vm::measure_component_volumes(components, baseline, cfg, out);
             return py::make_tuple(status, out);
         },

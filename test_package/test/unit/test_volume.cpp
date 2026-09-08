@@ -267,6 +267,15 @@ TEST(VolumePipeline, MultiComponentVolume) {
     ASSERT_EQ(est.status, vm::MeasurementStatus::kSuccess) << est.message;
     EXPECT_EQ(est.component_count, 2u);
     EXPECT_NEAR(est.volume_cm3, 2.0 * kExpectedVolumeCm3, 20.0);
+
+    // Per-component results are exposed aligned with selected_cluster_labels.
+    ASSERT_EQ(est.component_estimates.size(), 2u);
+    double per_component_sum = 0.0;
+    for (const auto& estimate : est.component_estimates) {
+        EXPECT_NEAR(estimate.volume_cm3, kExpectedVolumeCm3, 25.0);
+        per_component_sum += estimate.volume_cm3;
+    }
+    EXPECT_NEAR(per_component_sum, est.volume_cm3, 30.0);
 }
 
 
@@ -300,13 +309,12 @@ TEST(Integrator, PerComponentVolumes) {
     ASSERT_EQ(vm::extract_food_components(remaining, baseline, cfg, components), vm::MeasurementStatus::kSuccess);
     ASSERT_EQ(components.labels.size(), 2u);
 
-    vm::ComponentVolumeResults results{};
+    std::vector<vm::ComponentVolumeEstimate> results;
     ASSERT_EQ(vm::measure_component_volumes(components, baseline, cfg, results), vm::MeasurementStatus::kSuccess);
-    ASSERT_EQ(results.estimates.size(), 2u);
-    ASSERT_EQ(results.labels, components.labels);
+    ASSERT_EQ(results.size(), 2u);
 
     double total = 0.0;
-    for (const auto& estimate : results.estimates) {
+    for (const auto& estimate : results) {
         EXPECT_NEAR(estimate.volume_cm3, kExpectedVolumeCm3, 25.0);
         total += estimate.volume_cm3;
     }

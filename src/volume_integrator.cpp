@@ -792,7 +792,7 @@ MeasurementStatus measure_component_volume(const FoodComponents& components, con
 
 
 MeasurementStatus measure_component_volumes(const FoodComponents& components, const BaselineModel& baseline,
-                                            const MeasurementConfig& cfg, ComponentVolumeResults& out) {
+                                            const MeasurementConfig& cfg, std::vector<ComponentVolumeEstimate>& out) {
 #ifdef __ARM_EABI__
     (void)components;
     (void)baseline;
@@ -800,14 +800,13 @@ MeasurementStatus measure_component_volumes(const FoodComponents& components, co
     (void)out;
     return MeasurementStatus::kUnsupportedPlatform;
 #else
-    out = ComponentVolumeResults{};
+    out.clear();
 
     if (components.labels.empty() || components.labels.size() != components.clouds.size()) {
         return MeasurementStatus::kInvalidConfig;
     }
 
-    out.labels.reserve(components.labels.size());
-    out.estimates.reserve(components.labels.size());
+    out.reserve(components.labels.size());
     for (std::size_t i = 0; i < components.labels.size(); ++i) {
         // Integrate each component in isolation so its volume, cells, and hole-fill
         // diagnostics are reported separately rather than merged into one total.
@@ -821,8 +820,7 @@ MeasurementStatus measure_component_volumes(const FoodComponents& components, co
         if (status != MeasurementStatus::kSuccess) {
             return status;
         }
-        out.labels.push_back(components.labels[i]);
-        out.estimates.push_back(estimate);
+        out.push_back(estimate);
     }
     return MeasurementStatus::kSuccess;
 #endif // __ARM_EABI__

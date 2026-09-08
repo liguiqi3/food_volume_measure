@@ -205,6 +205,32 @@ struct MeasurementConfig {
 
 
 /**
+ * @brief [en] Per-component PCD-IM integration result.
+ * @brief [zh] 单组件 PCD-IM 积分结果。
+ * @exporter
+ */
+struct ComponentVolumeEstimate {
+    double raw_volume_cm3 = 0.0;
+    double interpolated_volume_cm3 = 0.0;
+    double volume_cm3 = 0.0;
+
+    std::size_t top_surface_points = 0;
+    std::size_t measured_cells = 0;
+    std::size_t interpolated_cells = 0;
+    std::size_t occupied_cells = 0;
+    std::size_t bbox_cell_count = 0;
+    std::size_t missing_baseline_cells = 0;
+    std::size_t unfilled_hole_cells = 0;
+
+    double footprint_area_m2 = 0.0;
+    double coverage_ratio = 0.0;
+    double mean_height_m = 0.0;
+    double max_height_m = 0.0;
+};
+
+
+
+/**
  * @brief [en] Result of a PCD-IM volume measurement. Numeric fields are NaN unless status is kSuccess.
  * @brief [zh] PCD-IM 体积测量结果。除非状态为 kSuccess，否则数值字段为 NaN。
  * @exporter
@@ -221,6 +247,10 @@ struct VolumeEstimate {
     std::size_t cluster_count = 0;
     std::vector<int> selected_cluster_labels;
     std::size_t selected_cluster_points = 0;
+
+    /// [en] Per-component integration results, aligned with `selected_cluster_labels`.
+    /// [zh] 逐组件积分结果，与 `selected_cluster_labels` 一一对应。
+    std::vector<ComponentVolumeEstimate> component_estimates;
 
     std::size_t baseline_frames = 0;
     std::size_t baseline_cell_count = 0;

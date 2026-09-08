@@ -14,44 +14,6 @@ namespace vm {
 
 
 /**
- * @brief [en] Per-component PCD-IM integration result.
- * @brief [zh] 单组件 PCD-IM 积分结果。
- * @exporter
- */
-struct ComponentVolumeEstimate {
-    double raw_volume_cm3 = 0.0;
-    double interpolated_volume_cm3 = 0.0;
-    double volume_cm3 = 0.0;
-
-    std::size_t top_surface_points = 0;
-    std::size_t measured_cells = 0;
-    std::size_t interpolated_cells = 0;
-    std::size_t occupied_cells = 0;
-    std::size_t bbox_cell_count = 0;
-    std::size_t missing_baseline_cells = 0;
-    std::size_t unfilled_hole_cells = 0;
-
-    double footprint_area_m2 = 0.0;
-    double coverage_ratio = 0.0;
-    double mean_height_m = 0.0;
-    double max_height_m = 0.0;
-};
-
-
-
-/**
- * @brief [en] Per-component integration results, aligned with `FoodComponents.labels`.
- * @brief [zh] 逐组件积分结果，与 `FoodComponents.labels` 一一对应。
- * @exporter
- */
-struct ComponentVolumeResults {
-    std::vector<int> labels;
-    std::vector<ComponentVolumeEstimate> estimates;
-};
-
-
-
-/**
  * @brief [en] Measures component volume by integrating baseline-relative heights with conservative hole completion.
  * @brief [zh] 通过积分相对基线高度并保守补洞来测量组件体积。
  * @param components [en] Selected food components produced by `extract_food_components`.
@@ -87,7 +49,7 @@ MeasurementStatus measure_component_volume(const FoodComponents& components, con
  * @exporter
  */
 MeasurementStatus measure_component_volumes(const FoodComponents& components, const BaselineModel& baseline,
-                                            const MeasurementConfig& cfg, ComponentVolumeResults& out);
+                                            const MeasurementConfig& cfg, std::vector<ComponentVolumeEstimate>& out);
 
 
 
