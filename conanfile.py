@@ -236,7 +236,8 @@ class PackageRecipe(ConanFile):
         return bool(self.meta.get("trigger_tests"))
 
     def _python_bindings_enabled(self):
-        return bool(self.meta.get("enable_python_bindings"))
+        # Cross profiles do not provide a target Python development SDK.
+        return bool(self.meta.get("enable_python_bindings")) and not cross_building(self)
 
     def requirements(self):
         for req in self.conandata.get('requirements'):
@@ -255,6 +256,7 @@ class PackageRecipe(ConanFile):
 
     def generate(self):
         tc = CMakeToolchain(self)
+        tc.variables["ENABLE_PYBIND"] = self._python_bindings_enabled()
         tc.variables['C_DEPS'], tc.variables['CPP_DEPS'] = self._preparing_deps_links()
 
         if cross_building(self) and self.settings.os == "baremetal":  # cross build to MCU
@@ -516,13 +518,21 @@ class PackageRecipe(ConanFile):
             shutil.copy2(report_path, dst / report_path.name)
 
     def package_info(self):
-        self.cpp_info.libs = [self.name]
         _c, _cpp = self._preparing_deps_links()
 
-        self.cpp_info.components[f"{self.name}_c"].libs = [f"{self.name}_c"]
-        self.cpp_info.components[f"{self.name}_c"].requires = [[_t := _.split('@')[1],
+        c_component = f"{self.name}_c"
+        library_dir = Path(self.package_folder) / "lib"
+        has_c_library = any(
+            path.is_file()
+            and (path.name == f"{c_component}.lib" or path.name.startswith(f"lib{c_component}."))
+            for path in library_dir.glob("*")
+        )
+        if has_c_library:
+            self.cpp_info.components[c_component].libs = [c_component]
+            self.cpp_info.components[c_component].requires = [[_t := _.split('@')[1],
                                                                 conan_targets[_t] if _t in conan_targets
                                                                 else _t][-1] for _ in _c]
+
         self.cpp_info.components[f"{self.name}_cpp"].libs = [f"{self.name}_cpp"]
         self.cpp_info.components[f"{self.name}_cpp"].requires = [[_t := _.split('@')[1],
                                                                   conan_targets[_t] if _t in conan_targets

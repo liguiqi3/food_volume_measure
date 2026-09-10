@@ -9,7 +9,7 @@ string(JSON ENABLE_COVERAGE ERROR_VARIABLE json_error GET "${METADATA_JSON}" "ac
 string(JSON IS_SHARED ERROR_VARIABLE json_error GET "${METADATA_JSON}" "is_shared")
 string(JSON IS_HEADER ERROR_VARIABLE json_error GET "${METADATA_JSON}" "is_header")
 string(JSON STD_MODULES ERROR_VARIABLE json_error GET "${METADATA_JSON}" "std_modules")
-string(JSON ENABLE_PYBIND ERROR_VARIABLE json_error GET "${METADATA_JSON}" "enable_python_bindings")
+string(JSON METADATA_ENABLE_PYBIND ERROR_VARIABLE json_error GET "${METADATA_JSON}" "enable_python_bindings")
 set(LIB_NAME "${PROJECT_NAME_VALUE}")
 if(NOT TARGET_NAMESPACE_VALUE STREQUAL "auto")
     set(PROJECT_NAMESPACE "${TARGET_NAMESPACE_VALUE}")
@@ -17,6 +17,10 @@ else()
     set(PROJECT_NAMESPACE "${LIB_NAME}")
 endif()
 project(${LIB_NAME} LANGUAGES C CXX)
+
+if(NOT DEFINED ENABLE_PYBIND)
+    set(ENABLE_PYBIND "${METADATA_ENABLE_PYBIND}")
+endif()
 
 
 function(parse_conan_deps INPUT_VAR OUTPUT_VAR)
@@ -60,48 +64,36 @@ function(split_conan_dependency INPUT_STR PACKAGE_NAME TARGETS)
 endfunction()
 
 
-# define file search mode (can be adjusted according to the project structure)
-set(C_HEADER_PATTERNS "*.h")
-set(CPP_HEADER_PATTERNS "*.hpp")
-set(C_SOURCE_PATTERNS "*.c")
-set(CPP_SOURCE_PATTERNS "*.cpp")
-set(MODULE_PATTERNS "*.ixx" "*.cppm")
-
-
 # auto file collection
 file(GLOB_RECURSE C_HEADERS
         LIST_DIRECTORIES false
         CONFIGURE_DEPENDS
-        ${C_HEADER_PATTERNS}
-        PATHS "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h"
 )
 
 file(GLOB_RECURSE CPP_HEADERS
         LIST_DIRECTORIES false
         CONFIGURE_DEPENDS
-        ${CPP_HEADER_PATTERNS}
-        PATHS "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
 )
 
 file(GLOB_RECURSE C_SOURCES
         LIST_DIRECTORIES false
         CONFIGURE_DEPENDS
-        ${C_SOURCE_PATTERNS}
-        PATHS "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
 )
 
 file(GLOB_RECURSE CPP_SOURCES
         LIST_DIRECTORIES false
         CONFIGURE_DEPENDS
-        ${CPP_SOURCE_PATTERNS}
-        PATHS "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
 
 file(GLOB_RECURSE MODULE_FILES
         LIST_DIRECTORIES false
         CONFIGURE_DEPENDS
-        ${MODULE_PATTERNS}
-        PATHS "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.ixx"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cppm"
 )
 
 
@@ -140,11 +132,13 @@ else()  # general package
   endif()
 
   # dynamically create lib targets
-  add_library(${LIB_NAME}_c ${BUILD_TYPE} ${C_SOURCES})
+  if(C_SOURCES)
+      add_library(${LIB_NAME}_c ${BUILD_TYPE} ${C_SOURCES})
+  endif()
   add_library(${LIB_NAME}_cpp ${BUILD_TYPE} ${CPP_SOURCES} ${MODULE_FILES})
   add_library(${LIB_NAME} INTERFACE)
 
-  if(NOT C_DEPS STREQUAL "[]")
+  if(C_SOURCES AND NOT C_DEPS STREQUAL "[]")
       parse_conan_deps(C_DEPS PARSED_C_DEPS)
       foreach (C_ITEM IN LISTS PARSED_C_DEPS)
           split_conan_dependency(C_ITEM C_PKG_NAME C_PKG_TARGETS)
@@ -162,7 +156,10 @@ else()  # general package
       endforeach()
   endif()
 
-  target_link_libraries(${LIB_NAME} INTERFACE ${LIB_NAME}_c ${LIB_NAME}_cpp)
+  if(C_SOURCES)
+      target_link_libraries(${LIB_NAME} INTERFACE ${LIB_NAME}_c)
+  endif()
+  target_link_libraries(${LIB_NAME} INTERFACE ${LIB_NAME}_cpp)
 
   if(WIN32)
       set(LIB_CXX_PREFIX "")
@@ -170,13 +167,15 @@ else()  # general package
       set(LIB_CXX_PREFIX "lib")
   endif()
 
-  set_target_properties(${LIB_NAME}_c PROPERTIES
-          C_STANDARD ${BUILD_CSTD}
-          C_STANDARD_REQUIRED ON
-          C_EXTENSIONS OFF
-          PREFIX "${LIB_CXX_PREFIX}"
-          OUTPUT_NAME "${LIB_NAME}_c"
-  )
+  if(C_SOURCES)
+      set_target_properties(${LIB_NAME}_c PROPERTIES
+              C_STANDARD ${BUILD_CSTD}
+              C_STANDARD_REQUIRED ON
+              C_EXTENSIONS OFF
+              PREFIX "${LIB_CXX_PREFIX}"
+              OUTPUT_NAME "${LIB_NAME}_c"
+      )
+  endif()
 
   set_target_properties(${LIB_NAME}_cpp PROPERTIES
           CXX_STANDARD ${BUILD_CPPSTD}
@@ -186,10 +185,12 @@ else()  # general package
           OUTPUT_NAME "${LIB_NAME}_cpp"
   )
 
-  target_include_directories(${LIB_NAME}_c PUBLIC
-          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-          $<INSTALL_INTERFACE:include>
-  )
+  if(C_SOURCES)
+      target_include_directories(${LIB_NAME}_c PUBLIC
+              $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+              $<INSTALL_INTERFACE:include>
+      )
+  endif()
 
   target_include_directories(${LIB_NAME}_cpp PUBLIC
           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -210,11 +211,15 @@ else()  # general package
       endif()
 
 
-      target_compile_options(${LIB_NAME}_c PRIVATE ${COVERAGE_FLAGS})
+      if(C_SOURCES)
+          target_compile_options(${LIB_NAME}_c PRIVATE ${COVERAGE_FLAGS})
+      endif()
       target_compile_options(${LIB_NAME}_cpp PRIVATE ${COVERAGE_FLAGS})
 
       if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-          target_link_options(${LIB_NAME}_c PRIVATE ${LINK_FLAGS})
+          if(C_SOURCES)
+              target_link_options(${LIB_NAME}_c PRIVATE ${LINK_FLAGS})
+          endif()
           target_link_options(${LIB_NAME}_cpp PRIVATE ${LINK_FLAGS})
       endif()
 
@@ -332,7 +337,10 @@ endif()
 if(IS_HEADER)
   set(INSTALL_TARGETS ${LIB_NAME})
 else()
-  set(INSTALL_TARGETS ${LIB_NAME}_c ${LIB_NAME}_cpp ${LIB_NAME})
+  set(INSTALL_TARGETS ${LIB_NAME}_cpp ${LIB_NAME})
+  if(C_SOURCES)
+      list(PREPEND INSTALL_TARGETS ${LIB_NAME}_c)
+  endif()
 endif()
 
 install(TARGETS ${INSTALL_TARGETS}

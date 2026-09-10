@@ -22,7 +22,7 @@
   "user_modules": "",
   "dependencies": {
     "common": {"ZLIB": ["ZLIB::ZLIB"]},
-    "c": {"PCRE2": ["pcre2::pcre2"]},
+    "c": {},
     "cpp": {
       "Eigen3": ["Eigen3::Eigen"],
       "etl": ["etl::etl"],

@@ -153,12 +153,15 @@ def generate_profile_linux(cfg: dict, lib_name: str) -> Path:
     extra_cflags      = cfg.get("extra_cflags", [])
 
     arch = CONAN_ARCH_MAP.get(cpu, "armv7")
+    target_abi = str(cfg.get("target_abi", "")).lower()
+    is_aarch64 = arch == "armv8" or target_abi.startswith("aarch64")
 
     flags = [f"-mcpu={cpu}"]
-    if fpu not in ("none", ""):
-        flags += [f"-mfloat-abi={float_abi}", f"-mfpu={fpu}"]
-    elif float_abi:
-        flags.append(f"-mfloat-abi={float_abi}")
+    if not is_aarch64:
+        if fpu not in ("none", ""):
+            flags += [f"-mfloat-abi={float_abi}", f"-mfpu={fpu}"]
+        elif float_abi:
+            flags.append(f"-mfloat-abi={float_abi}")
     flags.extend(extra_cflags)
     flags_str = _flags_list(flags)
 
@@ -169,7 +172,7 @@ def generate_profile_linux(cfg: dict, lib_name: str) -> Path:
         f"arch={arch}\n"
         "compiler=gcc\n"
         f"compiler.version={compiler_version}\n"
-        "compiler.cppstd=17\n"
+        "compiler.cppstd=gnu17\n"
         "compiler.libcxx=libstdc++11\n"
         "build_type=Release\n"
         "\n"
