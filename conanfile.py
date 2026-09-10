@@ -104,7 +104,12 @@ class PackageRecipe(ConanFile):
     # Binary configuration
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False], "fPIC": [True, False]}
-    default_options = {"shared": _metadata.get('is_shared'), "fPIC": True}  # inherit from config
+    default_options = {
+        "shared": _metadata.get('is_shared'),
+        "fPIC": True,
+        # File-based PCL input does not need Linux udev hotplug support.
+        "libusb/*:enable_udev": False,
+    }
 
     # Sources are located in the same place as this recipe, copy them to the recipe
     exports_sources = ["CMakeLists.txt", "src/*", "include/*", "api/*", METADATA_FILENAME, "LICENSE"]
