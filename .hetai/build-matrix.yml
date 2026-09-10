@@ -1,4 +1,4 @@
-package_ref: fcpp/1.0.0
+package_ref: food_volume_measure/0.1.0
 
 defaults:
   mode: default
@@ -6,11 +6,30 @@ defaults:
   create_extra_args: --build=missing --test-folder=
 
 targets:
-  - id: linux-armv7
+  - id: linux-orangepi-h6-A53
+    target_key: linux-orangepi-h6-A53
     default: true
     enabled: true
     build_kind: linux
     os: Linux
-    arch: armv7
+    arch: armv8
     toolchain_versions:
       - 11.3.rel1
+    benchmark:
+      enabled: true
+      target_os: Linux
+      target_cpu: cortex-a53
+      target_abi: aarch64-linux-gnu
+      profile_arch: armv8
+      artifact_kind: linux-elf
+      toolchain_package: auto
+      float_abi: ""
+      fpu: ""
+      extra_cflags: []
+      config_rel: platform/bench_config_ci_aarch64.json
+      remote_path: /tmp/fcpp_benchmark_orangepi_3_lts/benchmark
+      deploy_tool: ssh
+      ssh_host: ""
+      execution_route: ssh-board
+      route_id: orangepi-h6-a53
+      route_note: OrangePi 3 LTS AArch64 board route
