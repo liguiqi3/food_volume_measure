@@ -1,0 +1,6 @@
+# Keep food-specific system build tooling out of Plan's shared clean image.
+FROM hetai/clean-linux:2026.03
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config \
+    && rm -rf /var/lib/apt/lists/*

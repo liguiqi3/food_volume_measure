@@ -3,7 +3,7 @@ package_ref: food_volume_measure/0.1.0
 defaults:
   mode: default
   toolchain_version: 11.3.rel1
-  create_extra_args: --build=missing --test-folder=
+  create_extra_args: --build=missing --test-folder= -c tools.system.package_manager:mode=install -c tools.system.package_manager:sudo=False
 
 targets:
   - id: linux-orangepi-h6-A53

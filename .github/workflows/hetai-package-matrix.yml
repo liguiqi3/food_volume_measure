@@ -92,6 +92,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Prepare food CI build image
+        run: |
+          set -euo pipefail
+          image="hetai/food-volume-ci:${HETAI_RUN_KEY}"
+          docker build --pull=false --tag "$image" --file .hetai/Dockerfile.ci .
+          echo "HETAI_FOOD_CI_IMAGE=$image" >> "$GITHUB_ENV"
+
       - name: Build target in ephemeral container
         env:
           CONAN_USER: ${{ secrets.CONAN_USER }}
@@ -99,6 +106,7 @@ jobs:
           BUILD_REGISTRY_API_KEY: ${{ secrets.BUILD_REGISTRY_API_KEY }}
         run: |
           set -euo pipefail
+          export IMAGE="${HETAI_FOOD_CI_IMAGE:?food CI build image was not prepared}"
           export CONAN_CREATE_EXTRA_ARGS='${{ matrix.create_extra_args }}'
           bash "$HETAI_PLAN_ROOT/ops/docker/run_ephemeral_package_build.sh" \
             --source-dir "$GITHUB_WORKSPACE" \
@@ -148,6 +156,7 @@ jobs:
           BENCHMARK_ROUTE_NOTE: ${{ matrix.benchmark_route_note }}
         run: |
           set -euo pipefail
+          export BENCHMARK_BUILD_IMAGE="${HETAI_FOOD_CI_IMAGE:?food CI build image was not prepared}"
           bash "$HETAI_PLAN_ROOT/ops/board/build_benchmark_artifacts.sh" \
             --source-dir "$GITHUB_WORKSPACE" \
             --run-dir "/opt/hetai/build-runs/${HETAI_RUN_KEY}/${GITHUB_REPOSITORY}/${{ matrix.target_key }}-${{ matrix.toolchain_version }}" \
@@ -225,3 +234,13 @@ jobs:
             /opt/hetai/build-runs/${{ env.HETAI_RUN_KEY }}/${{ github.repository }}/${{ matrix.target_key }}-${{ matrix.toolchain_version }}/artifacts/package-info.txt
             /opt/hetai/build-runs/${{ env.HETAI_RUN_KEY }}/${{ github.repository }}/${{ matrix.target_key }}-${{ matrix.toolchain_version }}/artifacts/package-folder.tar.gz
             /opt/hetai/build-logs/${{ env.HETAI_RUN_KEY }}/${{ github.repository }}/${{ matrix.target_key }}-${{ matrix.toolchain_version }}/console.log
+
+      - name: Remove food CI build image
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -z "${HETAI_FOOD_CI_IMAGE:-}" ]]; then
+            echo "No food CI build image was created."
+          elif ! docker image rm "$HETAI_FOOD_CI_IMAGE"; then
+            echo "WARNING: unable to remove food CI build image: $HETAI_FOOD_CI_IMAGE" >&2
+          fi
