@@ -1,6 +1,19 @@
-# Keep food-specific system build tooling out of Plan's shared clean image.
+# Keep food-specific AArch64 build tooling out of Plan's shared clean image.
 FROM hetai/clean-linux:2026.03
 
-RUN apt-get update \
+RUN dpkg --add-architecture arm64 \
+    && sed -i '/^Architectures:/d' /etc/apt/sources.list.d/ubuntu.sources \
+    && sed -i '/^Components:/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources \
+    && printf '%s\n' \
+        'Types: deb' \
+        'URIs: http://ports.ubuntu.com/ubuntu-ports/' \
+        'Suites: noble noble-updates noble-backports noble-security' \
+        'Components: main universe restricted multiverse' \
+        'Architectures: arm64' \
+        'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
+        > /etc/apt/sources.list.d/ubuntu-ports-arm64.sources \
+    && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config \
     && rm -rf /var/lib/apt/lists/*
+
+ENV PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
